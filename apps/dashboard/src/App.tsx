@@ -4,12 +4,14 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { EmptyPage } from './pages/EmptyPage';
 import { Inventario } from './pages/Inventario';
+import { Oportunidades } from './pages/Oportunidades';
 import { Resumen } from './pages/Resumen';
 
 /** Páginas ya construidas. El resto de la navegación sigue vacío hasta su fase. */
 const PAGES: Record<string, ComponentType> = {
   '/': Resumen,
   '/inventario': Inventario,
+  '/oportunidades': Oportunidades,
 };
 
 export function App() {

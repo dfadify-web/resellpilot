@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Telegram · Hacoo enlaces",
+    "type": "telegram_public",
+    "url": "https://t.me/s/hacoo_hacco_links_enlaces",
+    "link_regex": "https?://c\\.onlyaff\\.app/[A-Za-z0-9]+"
+  },
+  {
+    "name": "DripSource · accesorios",
+    "type": "web",
+    "url": "https://dripsource.fit/categorie/accessoires",
+    "link_regex": "/produit/[a-z0-9-]+"
+  },
+  {
+    "name": "DripSource · otros",
+    "type": "web",
+    "url": "https://dripsource.fit/categorie/autres",
+    "link_regex": "/produit/[a-z0-9-]+"
+  },
+  {
+    "name": "DripSource · calzado",
+    "type": "web",
+    "url": "https://dripsource.fit/categorie/chaussures",
+    "link_regex": "/produit/[a-z0-9-]+"
+  },
+  {
+    "name": "DripSource · chica",
+    "type": "web",
+    "url": "https://dripsource.fit/categorie/fille",
+    "link_regex": "/produit/[a-z0-9-]+"
+  },
+  {
+    "name": "DripSource · abrigo",
+    "type": "web",
+    "url": "https://dripsource.fit/categorie/outerwear",
+    "link_regex": "/produit/[a-z0-9-]+"
+  },
+  {
+    "name": "DripSource · ropa",
+    "type": "web",
+    "url": "https://dripsource.fit/categorie/vetements",
+    "link_regex": "/produit/[a-z0-9-]+"
+  }
+]

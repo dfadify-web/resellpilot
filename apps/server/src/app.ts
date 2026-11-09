@@ -2,13 +2,34 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
-import { DASHBOARD_DIR } from './config';
+import { BLOCKLIST_PATH, DASHBOARD_DIR, SOURCES_PATH } from './config';
 import type { Db } from './db';
+import { Ingestor } from './deals/ingest';
+import { registerDealRoutes, type DealsDeps } from './deals/routes';
 import { NotFoundError, ValidationError, zodIssues } from './errors';
+import { httpFetcher } from './http';
 import { registerItemRoutes } from './items/routes';
+import { nullNotifier } from './telegram';
+
+/** Dependencias de oportunidades por defecto: red real, archivos de la raíz y sin Telegram. */
+export function defaultDealsDeps(db: Db): DealsDeps {
+  return {
+    notifier: nullNotifier,
+    blocklistPath: BLOCKLIST_PATH,
+    ingestor: new Ingestor({
+      db,
+      fetcher: httpFetcher,
+      notifier: nullNotifier,
+      sourcesPath: SOURCES_PATH,
+      blocklistPath: BLOCKLIST_PATH,
+    }),
+  };
+}
 
 export interface AppOptions {
   db: Db;
+  /** Ingesta, notificador y lista de marcas. Por defecto, `defaultDealsDeps`. */
+  deals?: DealsDeps;
   /**
    * Cómo servir el dashboard:
    * - `vite`: dev server de Vite embebido (HMR).
@@ -23,7 +44,7 @@ const isApi = (url: string) => url === '/api' || url.startsWith('/api/');
 /** Solo se atienden peticiones dirigidas a este equipo (frena el DNS rebinding). */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-export async function buildApp({ db, dashboard }: AppOptions): Promise<FastifyInstance> {
+export async function buildApp({ db, dashboard, deals }: AppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: 'warn' } });
 
   app.addHook('onRequest', async (request, reply) => {
@@ -63,6 +84,7 @@ export async function buildApp({ db, dashboard }: AppOptions): Promise<FastifyIn
   });
 
   registerItemRoutes(app, db);
+  registerDealRoutes(app, db, deals ?? defaultDealsDeps(db));
 
   if (dashboard === 'vite') {
     const { default: middie } = await import('@fastify/middie');

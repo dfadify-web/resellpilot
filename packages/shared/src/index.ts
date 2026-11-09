@@ -5,3 +5,6 @@ export * from './items';
 export * from './calc';
 export * from './dates';
 export * from './csv';
+export * from './deals';
+export * from './brands';
+export * from './scoring';

@@ -1,4 +1,12 @@
-import type { ItemInput, ItemWithCalc, Summary, ValidationIssue } from '@resellpilot/shared';
+import type {
+  DealPatch,
+  DealView,
+  ItemInput,
+  ItemWithCalc,
+  SourceStatus,
+  Summary,
+  ValidationIssue,
+} from '@resellpilot/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -53,6 +61,12 @@ const json = (method: string, data: unknown): RequestInit => ({
 
 export type SummaryResponse = Summary & { recent_sales: ItemWithCalc[] };
 
+export interface SourcesResponse {
+  /** `true` si hay token de bot de Telegram en `.env`. */
+  telegram: boolean;
+  sources: SourceStatus[];
+}
+
 export const api = {
   listItems: () => request<ItemWithCalc[]>('/api/items'),
   createItem: (input: ItemInput) => request<ItemWithCalc>('/api/items', json('POST', input)),
@@ -66,6 +80,14 @@ export const api = {
       body: csv,
     }),
   summary: () => request<SummaryResponse>('/api/summary'),
+
+  listDeals: () => request<DealView[]>('/api/deals'),
+  updateDeal: (id: number, patch: DealPatch) => request<DealView>(`/api/deals/${id}`, json('PATCH', patch)),
+  buyDeal: (id: number) =>
+    request<{ deal: DealView; item: ItemWithCalc }>(`/api/deals/${id}/buy`, { method: 'POST' }),
+  sources: () => request<SourcesResponse>('/api/sources'),
+  runIngest: () => request<SourcesResponse>('/api/ingest/run', { method: 'POST' }),
+  testTelegram: () => request<{ ok: boolean; error?: string }>('/api/telegram/test', { method: 'POST' }),
 };
 
 export const EXPORT_CSV_URL = '/api/items/export.csv';
