@@ -1,8 +1,11 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
+import { ZodError } from 'zod';
 import { DASHBOARD_DIR } from './config';
 import type { Db } from './db';
+import { NotFoundError, ValidationError, zodIssues } from './errors';
+import { registerItemRoutes } from './items/routes';
 
 export interface AppOptions {
   db: Db;
@@ -17,8 +20,36 @@ export interface AppOptions {
 
 const isApi = (url: string) => url === '/api' || url.startsWith('/api/');
 
+/** Solo se atienden peticiones dirigidas a este equipo (frena el DNS rebinding). */
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 export async function buildApp({ db, dashboard }: AppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: 'warn' } });
+
+  app.addHook('onRequest', async (request, reply) => {
+    const host = (request.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
+    if (!LOCAL_HOSTS.has(host)) {
+      return reply.code(403).send({ error: 'forbidden_host' });
+    }
+  });
+
+  app.setErrorHandler((error: FastifyError | Error, request, reply) => {
+    if (error instanceof ZodError) {
+      return reply.code(400).send({ error: 'validation', issues: zodIssues(error) });
+    }
+    if (error instanceof ValidationError) {
+      return reply.code(400).send({ error: 'validation', issues: error.issues });
+    }
+    if (error instanceof NotFoundError) {
+      return reply.code(404).send({ error: 'not_found', message: error.message });
+    }
+    const status = 'statusCode' in error && error.statusCode ? error.statusCode : 500;
+    if (status >= 500) {
+      request.log.error(error);
+      return reply.code(500).send({ error: 'internal', message: 'Error interno del server.' });
+    }
+    return reply.code(status).send({ error: 'bad_request', message: error.message });
+  });
 
   app.get('/api/health', async () => {
     const row = db.prepare('SELECT 1 AS ok').get() as { ok: number };
@@ -30,6 +61,8 @@ export async function buildApp({ db, dashboard }: AppOptions): Promise<FastifyIn
       time: new Date().toISOString(),
     };
   });
+
+  registerItemRoutes(app, db);
 
   if (dashboard === 'vite') {
     const { default: middie } = await import('@fastify/middie');

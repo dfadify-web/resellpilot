@@ -34,5 +34,14 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - `pnpm lint` — ESLint + typecheck
 - `pnpm build` — typecheck + build de dashboard y extensión
 
+## Convenciones de datos
+- Coste total de un item = `cost + shipping_cost + extra_costs`. `PACKAGING_EUR` solo se usa en el scoring de deals (Fase 2), no en el beneficio real: el embalaje real va en `extra_costs`.
+- Beneficio y ROI solo existen con `stock = vendido` y `sold_price`. Al salir de `vendido` el server borra `sold_price` y `sold_at`.
+- Capital inmovilizado = coste total de items en `pedido`, `en_camino`, `en_mano`, `listado`, `reservado`.
+- "Este mes" y las fechas sin hora se interpretan en hora local. Las fechas se guardan en ISO 8601 UTC.
+- CSV: se exporta con `;`, coma decimal y BOM (Excel en español); se importa con `,` o `;` y punto o coma decimal. Importar es todo o nada y siempre añade filas.
+- Los cálculos (`calc.ts`), el CSV y las fechas viven en `packages/shared` y son funciones puras con tests.
+
 ## Estado
 - Fase 0 (Base): hecha.
+- Fase 1 (Inventario y beneficios): hecha.

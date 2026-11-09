@@ -13,7 +13,7 @@ export function Layout() {
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
-      <aside className="flex shrink-0 flex-col border-b border-line bg-panel md:w-60 md:border-b-0 md:border-r">
+      <aside className="flex shrink-0 flex-col border-b border-line bg-panel md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r">
         <div className="border-b border-line px-5 py-5">
           <p className="font-display text-3xl font-bold uppercase leading-none tracking-tight">
             Resell<span className="text-accent">Pilot</span>
@@ -55,7 +55,7 @@ export function Layout() {
             />
             {HEALTH_LABEL[health]}
           </p>
-          <p className="mt-1.5">127.0.0.1:4317 · Fase 0</p>
+          <p className="mt-1.5">127.0.0.1:4317</p>
         </div>
       </aside>
 
