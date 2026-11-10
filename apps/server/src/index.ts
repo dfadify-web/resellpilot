@@ -28,6 +28,7 @@ const app = await buildApp({
   db,
   dashboard: isProd ? 'static' : 'vite',
   deals: { ingestor, notifier, blocklistPath: BLOCKLIST_PATH },
+  extensionId: config.extensionId,
 });
 
 /** Ingesta de oportunidades. Un fallo nunca tumba el server. */

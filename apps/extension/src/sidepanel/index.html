@@ -12,12 +12,26 @@
       <p class="sub">Vinted.es · local</p>
     </header>
     <main>
-      <p class="state"><i aria-hidden="true"></i><span id="estado">Desconectado</span></p>
+      <p class="state" id="estado-fila"><i aria-hidden="true"></i><span id="estado">Cargando…</span></p>
       <dl>
         <dt>Última sync</dt>
         <dd id="ultima-sync">—</dd>
+        <dd class="muted" id="resumen"></dd>
       </dl>
-      <p class="note">La lectura de tu cuenta de Vinted se activa en la Fase 3.</p>
+      <p class="note" id="aviso" role="status" aria-live="polite"></p>
+      <button type="button" class="primary" id="accion">Activar lectura</button>
+      <a class="secondary" href="http://localhost:4317" target="_blank" rel="noreferrer">Abrir dashboard</a>
+      <button type="button" class="link" id="desactivar" hidden>Desactivar lectura</button>
+
+      <section class="about">
+        <h2>Qué hace</h2>
+        <ul>
+          <li>Lee tus anuncios, notificaciones y la lista de mensajes cada ~15 min, solo con una pestaña de vinted.es abierta.</li>
+          <li>Lo envía únicamente a ResellPilot en este equipo. No lee cookies, contraseñas ni tokens.</li>
+          <li>No escribe nada en Vinted. Leer las notificaciones las marca como vistas, igual que abrir la campana.</li>
+          <li>Si Vinted responde 403, 429 o pide una verificación, se para y espera a que la reanudes tú.</li>
+        </ul>
+      </section>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>

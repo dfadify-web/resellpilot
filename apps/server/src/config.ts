@@ -12,6 +12,9 @@ export const DASHBOARD_DIR = resolve(ROOT_DIR, 'apps/dashboard');
 export const SOURCES_PATH = resolve(ROOT_DIR, 'sources.json');
 export const BLOCKLIST_PATH = resolve(ROOT_DIR, 'brand-blocklist.json');
 
+/** ID fijo de la extensión: lo determina la clave `key` de `apps/extension/manifest.config.ts`. */
+export const DEFAULT_EXTENSION_ID = 'kjgfhjhbgcpdodeknaofoemgeccffgok';
+
 /** El server solo escucha en loopback. No es configurable (Regla 2: todo local). */
 export const HOST = '127.0.0.1';
 
@@ -24,6 +27,11 @@ const envSchema = z.object({
     .transform((v) => v === 'true'),
   TELEGRAM_BOT_TOKEN: z.string().trim().default(''),
   TELEGRAM_CHAT_ID: z.string().trim().default(''),
+  EXTENSION_ID: z
+    .string()
+    .trim()
+    .regex(/^[a-p]{32}$/, 'EXTENSION_ID debe tener 32 letras de la a a la p')
+    .default(DEFAULT_EXTENSION_ID),
 });
 
 export interface Config {
@@ -32,6 +40,7 @@ export interface Config {
   openBrowser: boolean;
   telegramToken: string;
   telegramChatId: string;
+  extensionId: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -47,5 +56,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     openBrowser: parsed.OPEN_BROWSER,
     telegramToken: parsed.TELEGRAM_BOT_TOKEN,
     telegramChatId: parsed.TELEGRAM_CHAT_ID,
+    extensionId: parsed.EXTENSION_ID,
   };
 }

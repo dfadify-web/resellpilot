@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
-import { BLOCKLIST_PATH, DASHBOARD_DIR, SOURCES_PATH } from './config';
+import { BLOCKLIST_PATH, DASHBOARD_DIR, DEFAULT_EXTENSION_ID, SOURCES_PATH } from './config';
 import type { Db } from './db';
 import { Ingestor } from './deals/ingest';
 import { registerDealRoutes, type DealsDeps } from './deals/routes';
@@ -10,6 +10,7 @@ import { NotFoundError, ValidationError, zodIssues } from './errors';
 import { httpFetcher } from './http';
 import { registerItemRoutes } from './items/routes';
 import { nullNotifier } from './telegram';
+import { registerVintedRoutes } from './vinted/routes';
 
 /** Dependencias de oportunidades por defecto: red real, archivos de la raíz y sin Telegram. */
 export function defaultDealsDeps(db: Db): DealsDeps {
@@ -30,6 +31,8 @@ export interface AppOptions {
   db: Db;
   /** Ingesta, notificador y lista de marcas. Por defecto, `defaultDealsDeps`. */
   deals?: DealsDeps;
+  /** ID de la extensión de Chrome autorizada a enviar datos de Vinted. */
+  extensionId?: string;
   /**
    * Cómo servir el dashboard:
    * - `vite`: dev server de Vite embebido (HMR).
@@ -44,13 +47,26 @@ const isApi = (url: string) => url === '/api' || url.startsWith('/api/');
 /** Solo se atienden peticiones dirigidas a este equipo (frena el DNS rebinding). */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-export async function buildApp({ db, dashboard, deals }: AppOptions): Promise<FastifyInstance> {
+export async function buildApp({ db, dashboard, deals, extensionId }: AppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: 'warn' } });
+
+  const extensionOrigin = `chrome-extension://${extensionId ?? DEFAULT_EXTENSION_ID}`;
+  const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
   app.addHook('onRequest', async (request, reply) => {
     const host = (request.headers.host ?? '').replace(/:\d+$/, '').toLowerCase();
     if (!LOCAL_HOSTS.has(host)) {
       return reply.code(403).send({ error: 'forbidden_host' });
+    }
+    // Ninguna otra web puede escribir en la API: solo el propio dashboard y la extensión.
+    const origin = request.headers.origin;
+    if (
+      origin !== undefined &&
+      !SAFE_METHODS.has(request.method) &&
+      origin !== extensionOrigin &&
+      origin !== `http://${request.headers.host}`
+    ) {
+      return reply.code(403).send({ error: 'forbidden_origin' });
     }
   });
 
@@ -84,7 +100,9 @@ export async function buildApp({ db, dashboard, deals }: AppOptions): Promise<Fa
   });
 
   registerItemRoutes(app, db);
-  registerDealRoutes(app, db, deals ?? defaultDealsDeps(db));
+  const dealsDeps = deals ?? defaultDealsDeps(db);
+  registerDealRoutes(app, db, dealsDeps);
+  registerVintedRoutes(app, db, { notifier: dealsDeps.notifier, extensionOrigin });
 
   if (dashboard === 'vite') {
     const { default: middie } = await import('@fastify/middie');

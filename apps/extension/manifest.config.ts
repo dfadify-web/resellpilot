@@ -1,14 +1,18 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 
-// Esqueleto de la Fase 0. El content script de vinted.es y los permisos de host
-// llegan en la Fase 3; hasta entonces la extensión no toca Vinted.
 export default defineManifest({
   manifest_version: 3,
   name: 'ResellPilot',
-  version: '0.0.1',
-  description: 'Panel lateral de ResellPilot para vinted.es. Todo local.',
+  version: '0.3.0',
+  description: 'Lee tus anuncios y notificaciones de vinted.es y los envía a tu ResellPilot local.',
+  // Clave pública fija: hace que el ID de la extensión sea siempre kjgfhjhbgcpdodeknaofoemgeccffgok,
+  // que es el único origen al que el server permite enviar datos (ver DEFAULT_EXTENSION_ID).
+  key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzRbvHmC0E1SsS85bxz8VptAmL4EgzpcXx5Nt8yAvSOh5ps0p+Jn9JE2FsgGK0n44tMyjOXbpomiBnwKQLqQ7I6p6pxvW5V07rPY64Lforj3EElSXQLTP0kybSU3j9g1fAucxMtN+ItfZI7FMqjXrYa5DZeIOy1m81QS6MfwZeLelB1Rz9vEgzdwfZAmnn+7AL5Y4ZEfrr3Urp1auPi12AZKQBqCBlxCuX42imWiyaB22Sn21TL03aXPytxooG2dABj39I+N23qL2veMdBsyozDUVEge+jcIcN1lY52mp8XsAGPxDNZEPmTFWwMpiY++vkrGzeEy0JNlLdndHgnmBfwIDAQAB',
   action: { default_title: 'Abrir ResellPilot' },
   side_panel: { default_path: 'src/sidepanel/index.html' },
-  permissions: ['sidePanel'],
+  // Sin `cookies`, `webRequest` ni `scripting`: la extensión no puede leer cookies ni tokens.
+  permissions: ['sidePanel', 'alarms', 'storage'],
+  host_permissions: ['https://www.vinted.es/*', 'http://127.0.0.1/*'],
+  content_scripts: [{ matches: ['https://www.vinted.es/*'], js: ['src/content.ts'], run_at: 'document_idle' }],
   background: { service_worker: 'src/background.ts', type: 'module' },
 });

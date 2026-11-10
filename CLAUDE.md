@@ -29,7 +29,8 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 
 ## Comandos
 - `pnpm dev` — server + dashboard con HMR en http://localhost:4317
-- `pnpm dev:ext` — extensión en modo desarrollo (cargar `apps/extension/dist` sin empaquetar)
+- `pnpm --filter @resellpilot/extension build` — compila la extensión en `apps/extension/dist` (cargar sin empaquetar en chrome://extensions)
+- `pnpm dev:ext` — extensión en modo desarrollo con recarga
 - `pnpm test` — Vitest
 - `pnpm lint` — ESLint + typecheck
 - `pnpm build` — typecheck + build de dashboard y extensión
@@ -51,7 +52,19 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - Scoring en `packages/shared/scoring.ts`. Para deals, envío y otros costes valen 0. Hasta la Fase 4 `est_price` es manual y demanda/competencia son desconocidas: lo desconocido suma 0 al score.
 - Telegram avisa la primera vez que un deal pasa a recomendado (marca en `action_log`, acción `telegram_deal`). El chat se detecta con el primer `/start` al bot y se guarda en `settings.TELEGRAM_CHAT_ID`.
 
+## Cuenta de Vinted (Fase 3)
+- Endpoints verificados y sus efectos secundarios en `docs/vinted-endpoints.md`. Léelo antes de tocar la extensión.
+- La extensión (`apps/extension`) lee con `fetch` del mismo origen desde el content script; no tiene permiso `cookies` ni `webRequest`. La lógica de normalización es pura y vive en `packages/shared/src/vinted.ts` (con tests); el content script solo pide y pagina.
+- El usuario debe pulsar «Activar lectura» en el panel. Sync cada 15 min ± 2 (alarma), solo con una pestaña vinted.es abierta, una petición cada `READ_MIN_INTERVAL_S`.
+- Cualquier respuesta rara de Vinted (403, 429, 401, redirección, no-JSON, formato cambiado) pausa la extensión, avisa (panel, icono, Telegram vía `/api/vinted/state`) y no se reintenta sola.
+- El ID de la extensión es fijo por la `key` del manifest (`DEFAULT_EXTENSION_ID`). Las rutas `/api/vinted/{config,sync,state}` solo aceptan ese origen; el esquema de la sync es `.strict()` para que nunca entren cookies ni tokens.
+- Toda petición que no sea GET con un `Origin` distinto del propio dashboard o de la extensión se rechaza (ninguna web puede escribir en la API local).
+- Leer las notificaciones las marca como leídas en Vinted: el estado «leída» de ResellPilot es propio (`/api/notifications/read`).
+- Favoriters salen de las notificaciones `entry_type = 20`. Ventas: anuncio conocido que pasa a `vendido`. Mensajes: conversaciones con `unread`. La primera sync no avisa por Telegram.
+- Un anuncio que desaparece del armario completo pasa a `no_visible`. Un item solo puede estar enlazado a un anuncio.
+
 ## Estado
 - Fase 0 (Base): hecha.
 - Fase 1 (Inventario y beneficios): hecha.
 - Fase 2 (Oportunidades Hacoo): hecha. Pendiente del usuario: enviar /start al bot para recibir avisos.
+- Fase 3 (Extensión: lectura de mi cuenta): hecha. Pendiente del usuario: cargar `apps/extension/dist` en chrome://extensions y pulsar «Activar lectura».

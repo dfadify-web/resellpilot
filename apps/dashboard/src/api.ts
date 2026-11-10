@@ -2,6 +2,9 @@ import type {
   DealPatch,
   DealView,
   ItemInput,
+  ListingView,
+  NotificationView,
+  VintedStatus,
   ItemWithCalc,
   SourceStatus,
   Summary,
@@ -87,6 +90,14 @@ export const api = {
     request<{ deal: DealView; item: ItemWithCalc }>(`/api/deals/${id}/buy`, { method: 'POST' }),
   sources: () => request<SourcesResponse>('/api/sources'),
   runIngest: () => request<SourcesResponse>('/api/ingest/run', { method: 'POST' }),
+  vintedStatus: () => request<VintedStatus>('/api/vinted/status'),
+  forgetVintedAccount: () => request<VintedStatus>('/api/vinted/forget-account', { method: 'POST' }),
+  listListings: () => request<ListingView[]>('/api/listings'),
+  linkListing: (id: number, itemId: number | null) =>
+    request<ListingView>(`/api/listings/${id}`, json('PATCH', { item_id: itemId })),
+  listNotifications: () => request<NotificationView[]>('/api/notifications'),
+  markNotificationsRead: (ids?: number[]) =>
+    request<{ updated: number }>('/api/notifications/read', json('POST', ids ? { ids } : {})),
   testTelegram: () => request<{ ok: boolean; error?: string }>('/api/telegram/test', { method: 'POST' }),
 };
 

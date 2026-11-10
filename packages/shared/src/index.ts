@@ -8,3 +8,4 @@ export * from './csv';
 export * from './deals';
 export * from './brands';
 export * from './scoring';
+export * from './vinted';
