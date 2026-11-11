@@ -1,9 +1,17 @@
-import { DEFAULT_SETTINGS, SETTING_KEYS, serializeSetting, type SettingKey } from '@resellpilot/shared';
+import {
+  DEFAULT_OFFER_TEMPLATE,
+  DEFAULT_SETTINGS,
+  SETTING_KEYS,
+  serializeSetting,
+  templateIssues,
+  type SettingKey,
+} from '@resellpilot/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db';
 import { applyTrends, rescoreAll, scoringContext } from '../deals/service';
 import { ValidationError } from '../errors';
+import { getOfferTemplate } from '../offers/service';
 import { getRawSetting, getSettings, setRawSetting } from '../settings';
 import type { Notifier } from '../telegram';
 import { dueQueries, getIdClock, getSeeds, listTrends, recordTrends, setSeeds } from './service';
@@ -59,6 +67,7 @@ const settingsSchema = z
     settings: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
     trend_seeds: z.array(z.string().trim().min(2, 'mínimo 2 caracteres').max(80)).max(100).optional(),
     hacoo_search_url: z.string().trim().max(300).optional(),
+    offer_template: z.string().trim().max(600).optional(),
   })
   .strict();
 
@@ -92,6 +101,8 @@ export function registerTrendRoutes(app: FastifyInstance, db: Db, deps: TrendsDe
     defaults: DEFAULT_SETTINGS,
     trend_seeds: getSeeds(db),
     hacoo_search_url: getRawSetting(db, KEY_SEARCH_URL) ?? DEFAULT_SEARCH_URL,
+    offer_template: getOfferTemplate(db),
+    default_offer_template: DEFAULT_OFFER_TEMPLATE,
   });
 
   app.get('/api/trends', async () => {
@@ -115,8 +126,11 @@ export function registerTrendRoutes(app: FastifyInstance, db: Db, deps: TrendsDe
       if (!(SETTING_KEYS as string[]).includes(key)) {
         issues.push({ path: key, message: 'ajuste desconocido' });
       } else if (key === 'DRY_RUN') {
-        // El modo simulación protege las escrituras en Vinted; se podrá apagar (con confirmación) en la Fase 5.
-        if (value !== true) issues.push({ path: key, message: 'no se puede desactivar hasta la Fase 5' });
+        // La escritura real en Vinted (bajar precios, enviar mensajes) no está verificada todavía:
+        // hasta entonces todo se ejecuta en simulación y DRY_RUN no se puede apagar.
+        if (value !== true) {
+          issues.push({ path: key, message: 'la escritura real en Vinted aún no está habilitada: sigue en simulación' });
+        }
       } else {
         const [min, max, integer] = LIMITS[key as Exclude<SettingKey, 'DRY_RUN'>];
         if (typeof value !== 'number' || !Number.isFinite(value)) issues.push({ path: key, message: 'debe ser un número' });
@@ -131,11 +145,17 @@ export function registerTrendRoutes(app: FastifyInstance, db: Db, deps: TrendsDe
     if (input.hacoo_search_url !== undefined && input.hacoo_search_url !== '' && !validSearchUrl(input.hacoo_search_url)) {
       issues.push({ path: 'hacoo_search_url', message: 'debe ser una URL http(s); puede incluir {query}' });
     }
+    if (input.offer_template !== undefined && input.offer_template !== '') {
+      for (const message of templateIssues(input.offer_template)) issues.push({ path: 'offer_template', message });
+    }
     if (issues.length > 0) throw new ValidationError(issues);
 
     db.transaction(() => {
       for (const key of SETTING_KEYS) setRawSetting(db, key, serializeSetting(next[key] as number | boolean));
       if (input.trend_seeds !== undefined) setSeeds(db, input.trend_seeds);
+      if (input.offer_template !== undefined) {
+        setRawSetting(db, 'OFFER_TEMPLATE', input.offer_template === '' ? DEFAULT_OFFER_TEMPLATE : input.offer_template);
+      }
       if (input.hacoo_search_url !== undefined) {
         setRawSetting(db, KEY_SEARCH_URL, input.hacoo_search_url === '' ? DEFAULT_SEARCH_URL : input.hacoo_search_url);
       }

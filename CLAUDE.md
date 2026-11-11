@@ -72,9 +72,17 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - Ni hacoo.pl ni dripsource.fit tienen búsqueda por URL: «Buscar en Hacoo» copia la consulta y abre `HACOO_SEARCH_URL` (editable, admite `{query}`).
 - Para probar en navegador usa SIEMPRE otro puerto y BD temporal (`PORT=4318 DB_PATH=<temp>`), y comprueba `/api/vinted/status` antes de sembrar datos: el 4317 puede estar ocupado por el server real del usuario.
 
+## Ofertas a favoritos (Fase 5)
+- **Solo simulación.** La escritura real en Vinted (bajar un precio, enviar un mensaje) NO está implementada: no se pudo verificar sin escribir de verdad en la cuenta del usuario. `DRY_RUN` no se puede apagar (`PUT /api/settings` lo rechaza) y `apps/extension/src/commands.ts` detiene cualquier paso real. No implementes la escritura a ciegas: hace falta una prueba supervisada y autorizada por el usuario sobre un anuncio suyo.
+- El server es la autoridad (`apps/server/src/offers/service.ts`, `advanceCommand`): la extensión pide «siguiente paso» e informa del resultado. Ahí se aplican esperas aleatorias, límite diario (contado en `action_log`, acción `offer_sent`, día local), duplicados, conversación previa, revalidación de elegibilidad y paradas. Toda esa lógica está probada también en modo real (tests con `DRY_RUN=false` en la BD).
+- Elegible = anuncio `activo`, con precio, enlazado a un item `en_mano` (Regla 8) y cuyo título no tenga contenido prohibido. Regla 9 en `findForbiddenContent` (plantilla y mensaje final).
+- Un comando solo se crea tras la lista de confirmación del dashboard (Regla 6); solo uno activo a la vez. En real, cualquier fallo o resultado desconocido lo deja en `failed` y nunca se reenvía.
+- La extensión consulta `/api/vinted/commands/next` cada minuto y ejecuta en la pestaña de vinted.es con un overlay (shadow DOM) y botón PARAR.
+
 ## Estado
 - Fase 0 (Base): hecha.
 - Fase 1 (Inventario y beneficios): hecha.
 - Fase 2 (Oportunidades Hacoo): hecha. Pendiente del usuario: enviar /start al bot para recibir avisos.
 - Fase 3 (Extensión: lectura de mi cuenta): hecha. Pendiente del usuario: cargar `apps/extension/dist` en chrome://extensions y pulsar «Activar lectura».
 - Fase 4 (Tendencias): hecha.
+- Fase 5 (Ofertas a favoritos): hecha SOLO en simulación (DRY_RUN). Pendiente: escritura real en Vinted, que requiere autorización del usuario para una prueba supervisada.

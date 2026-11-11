@@ -10,6 +10,7 @@ import { NotFoundError, ValidationError, zodIssues } from './errors';
 import { httpFetcher } from './http';
 import { registerItemRoutes } from './items/routes';
 import { nullNotifier } from './telegram';
+import { registerOfferRoutes } from './offers/routes';
 import { registerTrendRoutes } from './trends/routes';
 import { registerVintedRoutes } from './vinted/routes';
 
@@ -104,6 +105,7 @@ export async function buildApp({ db, dashboard, deals, extensionId }: AppOptions
   const dealsDeps = deals ?? defaultDealsDeps(db);
   registerDealRoutes(app, db, dealsDeps);
   registerVintedRoutes(app, db, { notifier: dealsDeps.notifier, extensionOrigin });
+  registerOfferRoutes(app, db, extensionOrigin);
   registerTrendRoutes(app, db, {
     notifier: dealsDeps.notifier,
     blocklistPath: dealsDeps.blocklistPath,

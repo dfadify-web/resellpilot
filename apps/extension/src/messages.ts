@@ -65,3 +65,25 @@ export type CollectResponse =
   | { ok: true; payload: SyncPayload }
   /** `stop: true` = Vinted ha respondido algo que obliga a parar (Regla 5). */
   | { ok: false; stop: boolean; message: string };
+
+// ───────────────────────── comandos (Fase 5) ─────────────────────────
+
+export const COMMANDS_ALARM = 'resellpilot-commands';
+
+export interface CommandInfo {
+  id: number;
+  type: 'send_offers' | 'price_drop';
+  total: number;
+  dry_run: boolean;
+}
+
+/** Background → content script: hay un comando confirmado en el dashboard. */
+export interface RunCommandRequest {
+  kind: 'run-command';
+  command: CommandInfo;
+}
+
+/** Content script → background (que es quien puede hablar con el server local). */
+export type ContentMessage =
+  | { kind: 'command-step'; id: number; last?: import('@resellpilot/shared').StepResult }
+  | { kind: 'command-cancel'; id: number };

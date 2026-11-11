@@ -1,4 +1,6 @@
 import type {
+  CommandView,
+  OfferPlan,
   DealPatch,
   DealView,
   ItemInput,
@@ -85,13 +87,20 @@ export interface SettingsResponse {
   defaults: Settings;
   trend_seeds: string[];
   hacoo_search_url: string;
+  offer_template: string;
+  default_offer_template: string;
 }
 
 export interface SettingsInput {
   settings?: Partial<Settings>;
   trend_seeds?: string[];
   hacoo_search_url?: string;
+  offer_template?: string;
 }
+
+export type CommandInput =
+  | { type: 'send_offers'; favoriter_ids: number[] }
+  | { type: 'price_drop'; listing_ids: number[] };
 
 export const api = {
   listItems: () => request<ItemWithCalc[]>('/api/items'),
@@ -124,6 +133,10 @@ export const api = {
   trends: () => request<TrendsResponse>('/api/trends'),
   settings: () => request<SettingsResponse>('/api/settings'),
   saveSettings: (input: SettingsInput) => request<SettingsResponse>('/api/settings', json('PUT', input)),
+  offersPlan: () => request<OfferPlan>('/api/offers/plan'),
+  listCommands: () => request<CommandView[]>('/api/commands'),
+  createCommand: (input: CommandInput) => request<CommandView>('/api/commands', json('POST', input)),
+  cancelCommand: (id: number) => request<CommandView>(`/api/commands/${id}/cancel`, { method: 'POST' }),
   testTelegram: () => request<{ ok: boolean; error?: string }>('/api/telegram/test', { method: 'POST' }),
 };
 

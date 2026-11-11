@@ -37,7 +37,7 @@ const GROUPS: { title: string; fields: Field[] }[] = [
     ],
   },
   {
-    title: 'Ofertas a favoritos (Fase 5)',
+    title: 'Ofertas a favoritos',
     fields: [
       { key: 'OFFER_DISCOUNT_PCT', label: 'Descuento de la oferta %', help: '', step: '1' },
       { key: 'MAX_MESSAGES_PER_DAY', label: 'Mensajes por día (máx.)', help: '', step: '1' },
@@ -59,6 +59,7 @@ export function Ajustes() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [seeds, setSeeds] = useState('');
   const [searchUrl, setSearchUrl] = useState('');
+  const [template, setTemplate] = useState('');
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export function Ajustes() {
     );
     setSeeds(response.trend_seeds.join('\n'));
     setSearchUrl(response.hacoo_search_url);
+    setTemplate(response.offer_template);
   }
 
   useEffect(() => {
@@ -97,7 +99,7 @@ export function Ajustes() {
         .split('\n')
         .map((line) => line.trim())
         .filter((line) => line !== '');
-      load(await api.saveSettings({ settings, trend_seeds: trendSeeds, hacoo_search_url: searchUrl.trim() }));
+      load(await api.saveSettings({ settings, trend_seeds: trendSeeds, hacoo_search_url: searchUrl.trim(), offer_template: template.trim() }));
       setNotice('Ajustes guardados.');
     } catch (error) {
       setProblem(describeError(error));
@@ -192,6 +194,31 @@ export function Ajustes() {
                   </div>
                 </div>
               )}
+              {group.title === 'Ofertas a favoritos' && (
+                <div className="mt-4">
+                  <label className={ui.label} htmlFor="offer-template">
+                    Plantilla del mensaje
+                  </label>
+                  <textarea
+                    id="offer-template"
+                    className={`${ui.input} h-24`}
+                    maxLength={500}
+                    value={template}
+                    onChange={(e) => setTemplate(e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-muted">
+                    Variables: <code>{'{nombre} {titulo} {precio_final} {horas_envio} {descuento}'}</code>. No puede
+                    llevar enlaces ni datos de contacto.{' '}
+                    <button
+                      type="button"
+                      className="text-paper underline"
+                      onClick={() => setTemplate(data.default_offer_template)}
+                    >
+                      Restaurar la original
+                    </button>
+                  </p>
+                </div>
+              )}
             </fieldset>
           ))}
 
@@ -204,8 +231,8 @@ export function Ajustes() {
                   {data.settings.DRY_RUN ? 'Activado' : 'Desactivado'}
                 </dd>
                 <dd className="mt-1 text-xs text-muted">
-                  ResellPilot todavía no escribe nada en Vinted. Se podrá desactivar, con confirmación, cuando exista
-                  el botón de ofertas (Fase 5).
+                  Las ofertas y bajadas de precio solo se simulan: ResellPilot todavía no escribe nada en Vinted. No
+                  se puede desactivar hasta que la escritura real esté verificada.
                 </dd>
               </div>
               <div className="px-4 py-3">

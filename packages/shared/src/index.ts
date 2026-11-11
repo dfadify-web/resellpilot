@@ -10,3 +10,4 @@ export * from './brands';
 export * from './scoring';
 export * from './vinted';
 export * from './trends';
+export * from './offers';

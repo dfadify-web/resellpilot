@@ -4,6 +4,7 @@
  */
 import { nextSyncDelayMinutes } from '@resellpilot/shared';
 import {
+  COMMANDS_ALARM,
   SERVER,
   SYNC_ALARM,
   VINTED_MATCH,
@@ -11,7 +12,10 @@ import {
   setState,
   type CollectRequest,
   type CollectResponse,
+  type CommandInfo,
+  type ContentMessage,
   type PanelMessage,
+  type RunCommandRequest,
   type TrendsRequest,
   type TrendsResponse,
 } from './messages';
@@ -45,6 +49,7 @@ async function pause(reason: string): Promise<void> {
   const notice = `${reason} Revisa vinted.es y pulsa «Reanudar».`;
   await setState({ paused: true, notice, lease: null });
   await chrome.alarms.clear(SYNC_ALARM);
+  await chrome.alarms.clear(COMMANDS_ALARM);
   await chrome.action.setBadgeBackgroundColor({ color: '#ff4b1f' });
   await chrome.action.setBadgeText({ text: '!' });
   await api('/api/vinted/state', { paused: true, notice: reason }).catch(() => undefined);
@@ -128,12 +133,41 @@ async function sync(): Promise<void> {
   }
 }
 
+/**
+ * Comandos confirmados en el dashboard (Fase 5). Se entregan a una pestaña de vinted.es, que es
+ * donde se ejecutan con el overlay y el botón PARAR. Si ya hay uno en marcha, la pestaña lo ignora.
+ */
+async function checkCommands(): Promise<void> {
+  const state = await getState();
+  if (!state.enabled || state.paused) return;
+  let command: CommandInfo | null;
+  try {
+    command = (await api<{ command: CommandInfo | null }>('/api/vinted/commands/next')).command;
+  } catch {
+    return;
+  }
+  if (!command) return;
+  const tabs = await chrome.tabs.query({ url: VINTED_MATCH, discarded: false });
+  const tab = tabs.find((candidate) => candidate.active) ?? tabs[0];
+  if (tab?.id === undefined) {
+    await setState({ notice: 'Hay ofertas confirmadas: abre una pestaña de vinted.es para ejecutarlas.' });
+    return;
+  }
+  const request: RunCommandRequest = { kind: 'run-command', command };
+  await chrome.tabs.sendMessage(tab.id, request).catch(() => undefined);
+}
+
+const scheduleCommands = () => chrome.alarms.create(COMMANDS_ALARM, { periodInMinutes: 1 });
+
 /** Al arrancar el navegador o actualizar la extensión: retoma la programación si procede. */
 async function resume(): Promise<void> {
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   const state = await getState();
   await chrome.action.setBadgeText({ text: state.paused ? '!' : '' });
-  if (state.enabled && !state.paused && !(await chrome.alarms.get(SYNC_ALARM))) await scheduleNext();
+  if (state.enabled && !state.paused) {
+    if (!(await chrome.alarms.get(SYNC_ALARM))) await scheduleNext();
+    await scheduleCommands();
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => void resume());
@@ -141,11 +175,31 @@ chrome.runtime.onStartup.addListener(() => void resume());
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SYNC_ALARM) void sync();
+  if (alarm.name === COMMANDS_ALARM) void checkCommands();
 });
 
-chrome.runtime.onMessage.addListener((message: PanelMessage, sender, respond) => {
-  // Solo el panel lateral de la propia extensión puede dar órdenes (nunca una página web).
-  if (sender.id !== chrome.runtime.id || sender.tab) return;
+chrome.runtime.onMessage.addListener((message: PanelMessage | ContentMessage, sender, respond) => {
+  if (sender.id !== chrome.runtime.id) return;
+
+  // Content script de vinted.es: pide el siguiente paso de un comando o lo cancela (PARAR).
+  if (sender.tab) {
+    if (!sender.url?.startsWith('https://www.vinted.es/')) return;
+    if (message.kind === 'command-step') {
+      api(`/api/vinted/commands/${message.id}/step`, { last: message.last })
+        .then(respond)
+        .catch((error: unknown) => respond({ action: 'error', message: error instanceof Error ? error.message : 'Error' }));
+      return true;
+    }
+    if (message.kind === 'command-cancel') {
+      api(`/api/vinted/commands/${message.id}/cancel`, {})
+        .then(() => respond(true))
+        .catch(() => respond(false));
+      return true;
+    }
+    return;
+  }
+
+  // Panel lateral de la propia extensión: activar, sincronizar o desactivar.
 
   if (message.kind === 'activate' || message.kind === 'sync-now') {
     void (async () => {
@@ -153,7 +207,9 @@ chrome.runtime.onMessage.addListener((message: PanelMessage, sender, respond) =>
       await setState({ enabled: true, paused: false, notice: '' });
       await chrome.action.setBadgeText({ text: '' });
       await api('/api/vinted/state', { paused: false, notice: '' }).catch(() => undefined);
+      await scheduleCommands();
       await sync();
+      await checkCommands();
       respond(true);
     })();
     return true;
@@ -163,6 +219,7 @@ chrome.runtime.onMessage.addListener((message: PanelMessage, sender, respond) =>
     void (async () => {
       await setState({ enabled: false, paused: false, notice: '', lease: null });
       await chrome.alarms.clear(SYNC_ALARM);
+      await chrome.alarms.clear(COMMANDS_ALARM);
       await chrome.action.setBadgeText({ text: '' });
       respond(true);
     })();

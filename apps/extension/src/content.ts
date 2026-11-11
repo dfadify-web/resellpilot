@@ -18,10 +18,12 @@ import {
   type SyncListing,
   type SyncPayload,
 } from '@resellpilot/shared';
+import { runCommand } from './commands';
 import {
   getState,
   type CollectRequest,
   type CollectResponse,
+  type RunCommandRequest,
   type TrendsPayload,
   type TrendsRequest,
   type TrendsResponse,
@@ -192,12 +194,17 @@ async function measureTrends({ queries, intervalS, lease }: TrendsRequest): Prom
 
 // ───────────────────────── mensajes del service worker ─────────────────────────
 
-type Request = CollectRequest | TrendsRequest;
+type Request = CollectRequest | TrendsRequest | RunCommandRequest;
 type Response = CollectResponse | TrendsResponse;
 
 chrome.runtime.onMessage.addListener((message: Request, sender, respond: (response: Response) => void) => {
   // Solo se atiende al service worker de la propia extensión.
   if (sender.id !== chrome.runtime.id || sender.tab) return;
+  if (message?.kind === 'run-command') {
+    // Fase 5: se ejecuta aquí, en la pestaña, con overlay y botón PARAR.
+    void runCommand(message.command);
+    return;
+  }
   if (message?.kind !== 'collect' && message?.kind !== 'trends') return;
 
   const work: Promise<Response> =

@@ -2,11 +2,14 @@ import {
   LISTING_STATUS_LABELS,
   type ItemWithCalc,
   type ListingView,
+  type CommandType,
+  type OfferPlanRow,
   type VintedStatus,
 } from '@resellpilot/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { CommandBox, OffersDialog, useOffers } from '../components/OffersPanel';
 import { VintedStatusBar } from '../components/VintedStatusBar';
 import { eur, shortDate } from '../format';
 import { ui, usePageTitle } from '../ui';
@@ -31,6 +34,8 @@ export function Anuncios() {
   const [filter, setFilter] = useState<Filter>('en_venta');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
+  const [dialog, setDialog] = useState<{ type: CommandType; listingId: number | null } | null>(null);
+  const offers = useOffers();
 
   const reload = useCallback(async () => {
     try {
@@ -68,6 +73,11 @@ export function Anuncios() {
   const linkedItems = new Set(all.map((listing) => listing.item_id).filter((id): id is number => id !== null));
   const totalValue = onSale.reduce((sum, listing) => sum + (listing.price ?? 0), 0);
 
+  const planByListing = new Map((offers.plan?.rows ?? []).map((row) => [row.listing_id, row]));
+  const offerable = (offers.plan?.rows ?? []).filter((row) => row.blocker === null && row.pending > 0).length;
+  const commandActive = offers.plan?.active_command_id != null;
+  const discount = offers.plan?.discount_pct ?? 10;
+
   const kpis: [string, string][] = [
     ['En venta', String(onSale.length)],
     ['Valor publicado', eur(totalValue)],
@@ -78,11 +88,46 @@ export function Anuncios() {
   return (
     <section className="px-6 py-8 md:px-12 md:py-12">
       <p className={ui.eyebrow}>02 / 07</p>
-      <h1 className={ui.h1}>Anuncios</h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className={ui.h1}>Anuncios</h1>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className={ui.secondary}
+            disabled={!offers.plan || commandActive || offerable === 0}
+            onClick={() => setDialog({ type: 'send_offers', listingId: null })}
+          >
+            Enviar oferta −{discount} %
+          </button>
+          <button
+            type="button"
+            className={ui.primary}
+            disabled={!offers.plan || commandActive || offerable === 0}
+            onClick={() => setDialog({ type: 'price_drop', listingId: null })}
+          >
+            Bajar precio −{discount} %
+          </button>
+        </div>
+      </div>
 
       <div className="mt-8 space-y-3">
         <VintedStatusBar status={status} />
         <ErrorNote problem={problem} />
+        {offers.command && (
+          <CommandBox
+            command={offers.command}
+            onCancel={() => {
+              const id = offers.command?.id;
+              if (id !== undefined) void api.cancelCommand(id).then(() => offers.reload());
+            }}
+          />
+        )}
+        {offers.plan && all.length > 0 && offerable === 0 && !commandActive && (
+          <p className="text-xs text-muted">
+            Ofertas a favoritos: ahora mismo ningún anuncio las admite. Hace falta que esté activo, enlazado a un item
+            en estado «en mano» y con favoritos a los que aún no se haya ofertado.
+          </p>
+        )}
       </div>
 
       {all.length > 0 && (
@@ -113,12 +158,13 @@ export function Anuncios() {
       </div>
 
       <div className="mt-4 overflow-x-auto border border-line">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[1020px] border-collapse text-sm">
           <thead className="border-b border-line bg-panel">
             <tr>
               <th className={`${ui.th} min-w-[260px]`}>Anuncio</th>
               <th className={`${ui.th} text-right`}>Precio</th>
               <th className={`${ui.th} text-right`}>Favs</th>
+              <th className={`${ui.th} text-right`}>Sin ofertar</th>
               <th className={`${ui.th} text-right`}>Vistas</th>
               <th className={`${ui.th} text-right`}>Días</th>
               <th className={ui.th}>Publicado</th>
@@ -141,6 +187,14 @@ export function Anuncios() {
                 </td>
                 <td className={`${ui.td} text-right`}>{eur(listing.price)}</td>
                 <td className={`${ui.td} text-right`}>{listing.favs}</td>
+                <td className={`${ui.td} whitespace-nowrap text-right`}>
+                  <OfferCell
+                    row={planByListing.get(listing.id)}
+                    discount={discount}
+                    disabled={commandActive}
+                    onOffer={() => setDialog({ type: 'send_offers', listingId: listing.id })}
+                  />
+                </td>
                 <td className={`${ui.td} text-right`}>{listing.views}</td>
                 <td className={`${ui.td} text-right ${listing.stale ? 'font-semibold text-accent' : ''}`}>
                   {listing.days_listed ?? '—'}
@@ -176,7 +230,7 @@ export function Anuncios() {
             ))}
             {visible.length === 0 && (
               <tr>
-                <td className="px-3 py-10 text-center text-muted" colSpan={8}>
+                <td className="px-3 py-10 text-center text-muted" colSpan={9}>
                   {listings === null
                     ? 'Cargando…'
                     : all.length === 0
@@ -193,6 +247,42 @@ export function Anuncios() {
         Stale = en venta y con más días publicados que <code>STALE_DAYS</code>. La fecha de publicación es la de
         subida de la primera foto. Enlazar un anuncio con su item permite saber qué stock tienes en mano.
       </p>
+      {dialog && offers.plan && (
+        <OffersDialog
+          type={dialog.type}
+          plan={offers.plan}
+          onlyListingId={dialog.listingId}
+          onClose={() => setDialog(null)}
+          onCreated={() => {
+            setDialog(null);
+            void offers.reload();
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+interface OfferCellProps {
+  row: OfferPlanRow | undefined;
+  discount: number;
+  disabled: boolean;
+  onOffer: () => void;
+}
+
+/** Favoritos a los que aún no se ha ofertado, con el botón de oferta del anuncio. */
+function OfferCell({ row, discount, disabled, onOffer }: OfferCellProps) {
+  if (!row || row.pending === 0) return <span className="text-muted">—</span>;
+  if (row.blocker !== null) {
+    return (
+      <span className="text-muted" title={`No se puede ofertar: ${row.blocker}`}>
+        {row.pending} · bloqueado
+      </span>
+    );
+  }
+  return (
+    <button type="button" className={`${ui.link} text-paper`} disabled={disabled} onClick={onOffer}>
+      {row.pending} · Oferta −{discount} %
+    </button>
   );
 }
