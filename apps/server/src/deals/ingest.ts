@@ -5,6 +5,7 @@ import type { Notifier } from '../telegram';
 import { extractLinks, parseProductPage, parseTelegramChannel, type LinkCandidate } from './parsers';
 import { getDealByUrl, hasSeenLink, insertDeal, markLinkSeen } from './repo';
 import {
+  applyTrends,
   dealTitle,
   notifyIfRecommended,
   rescore,
@@ -92,6 +93,8 @@ export class Ingestor {
         status.error = errorText(error);
       }
     }
+    // Los deals nuevos reciben precio estimado, demanda y competencia de las tendencias ya medidas.
+    await applyTrends(db, context, this.options.notifier);
     return sources.map((source) => this.statusOf(source));
   }
 

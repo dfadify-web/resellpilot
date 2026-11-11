@@ -12,6 +12,8 @@ import {
   type CollectRequest,
   type CollectResponse,
   type PanelMessage,
+  type TrendsRequest,
+  type TrendsResponse,
 } from './messages';
 
 let running = false;
@@ -70,7 +72,7 @@ async function sync(): Promise<void> {
     }
 
     // Primero el server: si no está, no se hace ni una petición a Vinted.
-    const config = await api<{ read_min_interval_s: number }>('/api/vinted/config');
+    const config = await api<{ read_min_interval_s: number; trend_queries?: string[] }>('/api/vinted/config');
     await setState({ notice: 'Leyendo tu cuenta de Vinted…', lease });
 
     let answer: CollectResponse | undefined;
@@ -93,11 +95,31 @@ async function sync(): Promise<void> {
       '/api/vinted/sync',
       answer.payload,
     );
-    await setState({
-      lastSyncAt: saved.at,
-      lastSummary: `${saved.listings} anuncios · ${saved.new_events} novedades`,
-      notice: saved.warning ? `Sincronizado, pero Telegram falló: ${saved.warning}` : '',
-    });
+    const warning = saved.warning ? `Sincronizado, pero Telegram falló: ${saved.warning}` : '';
+    const summary = `${saved.listings} anuncios · ${saved.new_events} novedades`;
+    await setState({ lastSyncAt: saved.at, lastSummary: summary, notice: warning });
+
+    // Tendencias (Fase 4): búsquedas públicas que el server dice que toca medir ahora.
+    const queries = config.trend_queries ?? [];
+    if (queries.length === 0) return;
+    await setState({ notice: `Midiendo tendencias (${queries.length} búsquedas)…` });
+
+    const trendsRequest: TrendsRequest = { kind: 'trends', queries, intervalS: config.read_min_interval_s, lease };
+    let trends: TrendsResponse | undefined;
+    try {
+      trends = await chrome.tabs.sendMessage(tab.id, trendsRequest);
+    } catch {
+      await setState({ notice: warning });
+      return;
+    }
+    if (!trends) return;
+    if (!trends.ok) {
+      if (trends.stop) await pause(trends.message);
+      else if ((await getState()).lease === lease) await setState({ notice: trends.message });
+      return;
+    }
+    await api('/api/vinted/trends', trends.payload);
+    await setState({ lastSummary: `${summary} · ${queries.length} tendencias`, notice: warning });
   } catch (error) {
     await setState({ notice: error instanceof Error ? error.message : 'No se pudo sincronizar.' });
   } finally {

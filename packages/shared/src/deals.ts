@@ -17,6 +17,8 @@ export interface Deal {
   found_at: string;
   /** Precio de venta estimado. Manual hasta la Fase 4. */
   est_price: number | null;
+  /** `true` si `est_price` lo escribió el usuario; `false` si lo rellena Tendencias. */
+  est_manual: boolean;
   est_profit: number | null;
   roi: number | null;
   /** Favoritos por día de los comparables (Fase 4). */

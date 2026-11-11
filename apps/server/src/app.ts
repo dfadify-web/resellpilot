@@ -10,6 +10,7 @@ import { NotFoundError, ValidationError, zodIssues } from './errors';
 import { httpFetcher } from './http';
 import { registerItemRoutes } from './items/routes';
 import { nullNotifier } from './telegram';
+import { registerTrendRoutes } from './trends/routes';
 import { registerVintedRoutes } from './vinted/routes';
 
 /** Dependencias de oportunidades por defecto: red real, archivos de la raíz y sin Telegram. */
@@ -103,6 +104,11 @@ export async function buildApp({ db, dashboard, deals, extensionId }: AppOptions
   const dealsDeps = deals ?? defaultDealsDeps(db);
   registerDealRoutes(app, db, dealsDeps);
   registerVintedRoutes(app, db, { notifier: dealsDeps.notifier, extensionOrigin });
+  registerTrendRoutes(app, db, {
+    notifier: dealsDeps.notifier,
+    blocklistPath: dealsDeps.blocklistPath,
+    extensionOrigin,
+  });
 
   if (dashboard === 'vite') {
     const { default: middie } = await import('@fastify/middie');

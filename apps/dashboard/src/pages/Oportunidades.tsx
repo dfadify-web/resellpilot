@@ -280,6 +280,11 @@ export function Oportunidades() {
                         void run(() => api.updateDeal(deal.id, { est_price }).then(() => undefined))
                       }
                     />
+                    {deal.est_price !== null && !deal.est_manual && (
+                      <span className="block text-[10px] uppercase tracking-[0.12em] text-muted" title="Calculado por Tendencias: (p25 + mediana) / 2">
+                        auto
+                      </span>
+                    )}
                   </td>
                   <td
                     className={`${ui.td} text-right font-semibold ${
@@ -377,7 +382,8 @@ export function Oportunidades() {
       </div>
 
       <p className="mt-3 max-w-prose text-xs text-muted">
-        Escribe el precio de venta estimado para ver beneficio, ROI y score. Las oportunidades cuyo título coincide
+        El precio de venta estimado se rellena solo desde Tendencias (marcado «auto») cuando el título coincide con
+        una búsqueda medida; si lo escribes tú, manda el tuyo, y si lo borras vuelve el automático. Las oportunidades cuyo título coincide
         con <code>brand-blocklist.json</code> se marcan como riesgo de marca y nunca se recomiendan.
       </p>
 

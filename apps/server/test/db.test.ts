@@ -53,7 +53,7 @@ describe('db', () => {
     ]);
     expect(columns(db, 'deals')).toEqual([
       'id', 'url', 'source', 'title', 'price', 'image', 'found_at', 'est_price', 'est_profit', 'roi',
-      'demand', 'competition', 'score', 'risk_flags', 'status',
+      'demand', 'competition', 'score', 'risk_flags', 'status', 'est_manual',
     ]);
     expect(columns(db, 'trends')).toEqual([
       'id', 'query', 'median_price', 'p25_price', 'listings_count', 'avg_favs', 'favs_per_day',

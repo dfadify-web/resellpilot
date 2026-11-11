@@ -2,12 +2,14 @@ import { NAV_ITEMS } from '@resellpilot/shared';
 import type { ComponentType } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { Ajustes } from './pages/Ajustes';
 import { Anuncios } from './pages/Anuncios';
 import { EmptyPage } from './pages/EmptyPage';
 import { Inventario } from './pages/Inventario';
 import { Notificaciones } from './pages/Notificaciones';
 import { Oportunidades } from './pages/Oportunidades';
 import { Resumen } from './pages/Resumen';
+import { Tendencias } from './pages/Tendencias';
 
 /** Páginas ya construidas. El resto de la navegación sigue vacío hasta su fase. */
 const PAGES: Record<string, ComponentType> = {
@@ -16,6 +18,8 @@ const PAGES: Record<string, ComponentType> = {
   '/notificaciones': Notificaciones,
   '/inventario': Inventario,
   '/oportunidades': Oportunidades,
+  '/tendencias': Tendencias,
+  '/ajustes': Ajustes,
 };
 
 export function App() {

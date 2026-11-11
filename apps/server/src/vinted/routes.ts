@@ -5,6 +5,7 @@ import type { Db } from '../db';
 import { NotFoundError, ValidationError } from '../errors';
 import { getSettings } from '../settings';
 import type { Notifier } from '../telegram';
+import { dueQueries } from '../trends/service';
 import {
   AccountMismatchError,
   applySync,
@@ -95,6 +96,8 @@ export function registerVintedRoutes(app: FastifyInstance, db: Db, deps: VintedD
 
   app.get('/api/vinted/config', extension, async () => ({
     read_min_interval_s: Math.max(1, getSettings(db).READ_MIN_INTERVAL_S),
+    // Búsquedas públicas que toca medir en esta sync (Fase 4), ya limitadas por caché y por hora.
+    trend_queries: dueQueries(db),
   }));
 
   app.post('/api/vinted/sync', { ...extension, bodyLimit: 4 * 1024 * 1024 }, async (request, reply) => {

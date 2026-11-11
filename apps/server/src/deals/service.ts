@@ -1,6 +1,8 @@
 import {
   RISK_BRAND,
+  estPriceFromTrend,
   matchBlockedBrands,
+  matchTrend,
   normalizeForMatch,
   scoreDeal,
   type Deal,
@@ -15,6 +17,7 @@ import { insertItem } from '../items/repo';
 import { buildItemData } from '../items/schema';
 import { getSettings } from '../settings';
 import type { Notifier } from '../telegram';
+import { latestTrends, type TrendRow } from '../trends/service';
 import { getDeal, hasAction, listDeals, logAction, updateDeal } from './repo';
 import { loadBlocklist } from './sources';
 
@@ -100,8 +103,54 @@ export function patchDeal(db: Db, id: number, patch: DealPatch, context: Scoring
   if (patch.status !== undefined && deal.status === 'comprado') {
     throw new ValidationError([{ path: 'status', message: 'ya está comprada: gestiónala desde Inventario' }]);
   }
-  const updated = updateDeal(db, id, patch) ?? deal;
+  // Un precio estimado escrito a mano manda sobre Tendencias; al borrarlo vuelve a ser automático.
+  const manual = patch.est_price === undefined ? {} : { est_manual: patch.est_price !== null };
+  let updated = updateDeal(db, id, { ...patch, ...manual }) ?? deal;
+  if (!updated.est_manual && updated.est_price === null) updated = applyTrendToDeal(db, updated, usableTrends(db));
   return toView(rescore(db, updated, context), context.settings);
+}
+
+/** Mínimo de anuncios comparables para fiarse de una tendencia. */
+const MIN_COMPARABLES = 5;
+
+const usableTrends = (db: Db): TrendRow[] =>
+  latestTrends(db).filter((trend) => trend.median_price !== null && trend.listings_count >= MIN_COMPARABLES);
+
+/**
+ * Rellena demanda y competencia (y el precio estimado, si no es manual) con la tendencia cuyas
+ * palabras clave coinciden con el título. No recalcula el score: eso lo hace `rescore`.
+ */
+function applyTrendToDeal(db: Db, deal: Deal, trends: readonly TrendRow[]): Deal {
+  const trend = matchTrend(deal.title, trends);
+  if (!trend) return deal;
+  return (
+    updateDeal(db, deal.id, {
+      demand: trend.favs_per_day,
+      competition: trend.listings_count,
+      ...(deal.est_manual ? {} : { est_price: estPriceFromTrend(trend) }),
+    }) ?? deal
+  );
+}
+
+/**
+ * Cruza todos los deals pendientes sin riesgo con las tendencias (PRD F4.5), recalcula su score
+ * y avisa por Telegram de los que pasan a recomendados. Devuelve cuántos deals tienen tendencia.
+ */
+export async function applyTrends(db: Db, context: ScoringContext, notifier: Notifier): Promise<number> {
+  const trends = usableTrends(db);
+  if (trends.length === 0) return 0;
+
+  const changed: Deal[] = [];
+  db.transaction(() => {
+    for (const deal of listDeals(db, 'nuevo')) {
+      if (deal.risk_flags.length > 0) continue;
+      const updated = applyTrendToDeal(db, deal, trends);
+      if (updated !== deal) changed.push(rescore(db, updated, context));
+    }
+  })();
+
+  for (const deal of changed) await notifyIfRecommended(db, notifier, toView(deal, context.settings));
+  return changed.length;
 }
 
 /** "Comprado": crea un item en estado `pedido` con el coste del deal y cierra el deal. */

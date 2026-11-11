@@ -96,5 +96,33 @@ No hay un endpoint de ventas: se detectan cuando un anuncio conocido pasa a `ven
 ## Búsquedas públicas (Fase 4)
 
 Vinted ya no expone la búsqueda como API JSON (`/api/v2/catalog/items` devuelve 404): los resultados
-vienen renderizados en el HTML de `GET /catalog?search_text={consulta}`. Ver la sección de Tendencias
-en `CLAUDE.md` para cómo se extraen precio y favoritos y cómo se estima la antigüedad.
+vienen renderizados en el HTML.
+
+### `GET /catalog?search_text={consulta}`
+Primera página de resultados (≈96 tarjetas), con `Accept: text/html`. El content script la convierte
+con `DOMParser` y de cada `[data-testid="grid-item"]` extrae solo:
+
+| Dato | De dónde |
+| --- | --- |
+| id del artículo | `data-testid="product-item-id-{id}"` |
+| precio | `[data-testid$="--price-text"]` («13,00 €») |
+| favoritos | `[data-testid="favourite-count-text"]` (no existe si son 0) |
+| total | texto «500+ resultados» de la página |
+
+No se extrae ni se guarda nada de los vendedores (nombre, foto, valoraciones) ni los títulos.
+Si la página no contiene el buscador del catálogo ni tarjetas, se trata como verificación y se para.
+
+### Fecha de publicación: no existe en los resultados
+Ni la tarjeta ni la URL de la foto llevan fecha. La antigüedad se **estima a partir del id**: los ids
+de Vinted son correlativos y crecen a un ritmo muy estable (~13,3 millones al día, medido el
+2026-11-10 con anuncios propios de fecha conocida).
+
+- `GET /catalog?order=newest_first` (una vez por tanda) da el id más alto del momento: «ahora».
+- antigüedad ≈ (id_máximo − id) / ids_por_día, con un mínimo de 1 día.
+- El ritmo se recalibra solo con los puntos «id máximo ↔ fecha» de días distintos.
+- `favs_per_day` = favoritos totales / días totales de las tarjetas. Es una estimación para
+  comparar búsquedas entre sí, no una cifra exacta.
+
+### Límites
+Como mucho 8 búsquedas por sync, `TRENDS_MAX_REQ_PER_HOUR` por hora y una medición por búsqueda cada
+`TRENDS_CACHE_H` horas; todas con la pausa `READ_MIN_INTERVAL_S` y las mismas reglas de parada.

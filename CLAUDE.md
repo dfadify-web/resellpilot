@@ -63,8 +63,18 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - Favoriters salen de las notificaciones `entry_type = 20`. Ventas: anuncio conocido que pasa a `vendido`. Mensajes: conversaciones con `unread`. La primera sync no avisa por Telegram.
 - Un anuncio que desaparece del armario completo pasa a `no_visible`. Un item solo puede estar enlazado a un anuncio.
 
+## Tendencias (Fase 4)
+- Lógica pura en `packages/shared/src/trends.ts`; server en `apps/server/src/trends`. La búsqueda de Vinted es HTML, no API: ver `docs/vinted-endpoints.md`.
+- Consultas = semillas (Ajustes) + derivadas de items sin vender y de deals `nuevo` sin riesgo (primeras 3 palabras clave, mínimo 2). `GET /api/vinted/config` entrega a la extensión solo las que toca medir (caché, límite por hora, 8 por sync).
+- La fecha de publicación no existe en los resultados: la antigüedad se estima por el id (`IdClock`, anclas en `settings.VINTED_ID_ANCHORS`). `favs_per_day` es favoritos totales / días totales.
+- `deals.est_manual` (migración 003): el precio estimado escrito a mano no se pisa; el automático es (p25 + mediana) / 2 de la tendencia cuyas palabras están todas en el título (la más específica), con al menos 5 anuncios.
+- Ajustes: `GET/PUT /api/settings` con rangos validados. `DRY_RUN` no se puede apagar hasta la Fase 5.
+- Ni hacoo.pl ni dripsource.fit tienen búsqueda por URL: «Buscar en Hacoo» copia la consulta y abre `HACOO_SEARCH_URL` (editable, admite `{query}`).
+- Para probar en navegador usa SIEMPRE otro puerto y BD temporal (`PORT=4318 DB_PATH=<temp>`), y comprueba `/api/vinted/status` antes de sembrar datos: el 4317 puede estar ocupado por el server real del usuario.
+
 ## Estado
 - Fase 0 (Base): hecha.
 - Fase 1 (Inventario y beneficios): hecha.
 - Fase 2 (Oportunidades Hacoo): hecha. Pendiente del usuario: enviar /start al bot para recibir avisos.
 - Fase 3 (Extensión: lectura de mi cuenta): hecha. Pendiente del usuario: cargar `apps/extension/dist` en chrome://extensions y pulsar «Activar lectura».
+- Fase 4 (Tendencias): hecha.

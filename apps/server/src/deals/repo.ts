@@ -1,10 +1,10 @@
 import type { Deal, DealStatus } from '@resellpilot/shared';
 import type { Db } from '../db';
 
-type DealRow = Omit<Deal, 'risk_flags'> & { risk_flags: string };
+type DealRow = Omit<Deal, 'risk_flags' | 'est_manual'> & { risk_flags: string; est_manual: number };
 
 const COLUMNS =
-  'id, url, source, title, price, image, found_at, est_price, est_profit, roi, demand, competition, score, risk_flags, status';
+  'id, url, source, title, price, image, found_at, est_price, est_manual, est_profit, roi, demand, competition, score, risk_flags, status';
 
 function toDeal(row: DealRow): Deal {
   let flags: unknown;
@@ -15,6 +15,7 @@ function toDeal(row: DealRow): Deal {
   }
   return {
     ...row,
+    est_manual: row.est_manual === 1,
     risk_flags: Array.isArray(flags) ? flags.filter((f): f is string => typeof f === 'string') : [],
   };
 }
@@ -51,7 +52,20 @@ export function insertDeal(db: Db, deal: NewDeal): Deal {
 }
 
 export type DealUpdate = Partial<
-  Pick<Deal, 'title' | 'price' | 'est_price' | 'est_profit' | 'roi' | 'score' | 'risk_flags' | 'status'>
+  Pick<
+    Deal,
+    | 'title'
+    | 'price'
+    | 'est_price'
+    | 'est_manual'
+    | 'est_profit'
+    | 'roi'
+    | 'demand'
+    | 'competition'
+    | 'score'
+    | 'risk_flags'
+    | 'status'
+  >
 >;
 
 export function updateDeal(db: Db, id: number, update: DealUpdate): Deal | undefined {
@@ -59,7 +73,10 @@ export function updateDeal(db: Db, id: number, update: DealUpdate): Deal | undef
   if (entries.length > 0) {
     const assignments = entries.map(([key]) => `${key} = @${key}`).join(', ');
     const params = Object.fromEntries(
-      entries.map(([key, value]) => [key, key === 'risk_flags' ? JSON.stringify(value) : value]),
+      entries.map(([key, value]) => [
+        key,
+        key === 'risk_flags' ? JSON.stringify(value) : typeof value === 'boolean' ? Number(value) : value,
+      ]),
     );
     db.prepare(`UPDATE deals SET ${assignments} WHERE id = @id`).run({ ...params, id });
   }

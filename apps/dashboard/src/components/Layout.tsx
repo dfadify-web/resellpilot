@@ -55,7 +55,7 @@ export function Layout() {
             />
             {HEALTH_LABEL[health]}
           </p>
-          <p className="mt-1.5">127.0.0.1:4317</p>
+          <p className="mt-1.5">127.0.0.1:{window.location.port || '80'}</p>
         </div>
       </aside>
 

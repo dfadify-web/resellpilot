@@ -1,4 +1,20 @@
-import type { SyncPayload } from '@resellpilot/shared';
+import type { RawSearchResult, SyncPayload } from '@resellpilot/shared';
+
+/** Background → content script: búsquedas públicas a medir (Fase 4). */
+export interface TrendsRequest {
+  kind: 'trends';
+  queries: string[];
+  intervalS: number;
+  lease: string;
+}
+
+export interface TrendsPayload {
+  /** Id más reciente del catálogo ahora mismo, para estimar antigüedades. */
+  max_id_now: number | null;
+  results: RawSearchResult[];
+}
+
+export type TrendsResponse = { ok: true; payload: TrendsPayload } | { ok: false; stop: boolean; message: string };
 
 export const VINTED_MATCH = 'https://www.vinted.es/*';
 export const SERVER = 'http://127.0.0.1:4317';

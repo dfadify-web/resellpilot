@@ -6,7 +6,9 @@ import type {
   NotificationView,
   VintedStatus,
   ItemWithCalc,
+  Settings,
   SourceStatus,
+  TrendView,
   Summary,
   ValidationIssue,
 } from '@resellpilot/shared';
@@ -70,6 +72,27 @@ export interface SourcesResponse {
   sources: SourceStatus[];
 }
 
+export interface TrendsResponse {
+  trends: TrendView[];
+  /** Consultas que se medirán en la próxima sync de la extensión. */
+  due: number;
+  calibrated_at: string | null;
+  hacoo_search_url: string;
+}
+
+export interface SettingsResponse {
+  settings: Settings;
+  defaults: Settings;
+  trend_seeds: string[];
+  hacoo_search_url: string;
+}
+
+export interface SettingsInput {
+  settings?: Partial<Settings>;
+  trend_seeds?: string[];
+  hacoo_search_url?: string;
+}
+
 export const api = {
   listItems: () => request<ItemWithCalc[]>('/api/items'),
   createItem: (input: ItemInput) => request<ItemWithCalc>('/api/items', json('POST', input)),
@@ -98,6 +121,9 @@ export const api = {
   listNotifications: () => request<NotificationView[]>('/api/notifications'),
   markNotificationsRead: (ids?: number[]) =>
     request<{ updated: number }>('/api/notifications/read', json('POST', ids ? { ids } : {})),
+  trends: () => request<TrendsResponse>('/api/trends'),
+  settings: () => request<SettingsResponse>('/api/settings'),
+  saveSettings: (input: SettingsInput) => request<SettingsResponse>('/api/settings', json('PUT', input)),
   testTelegram: () => request<{ ok: boolean; error?: string }>('/api/telegram/test', { method: 'POST' }),
 };
 
