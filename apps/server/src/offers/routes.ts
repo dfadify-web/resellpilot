@@ -1,7 +1,8 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db';
 import { NotFoundError } from '../errors';
+import { extensionGuard } from '../extension-guard';
 import { advanceCommand, buildPlan, cancelCommand, createCommand, getCommand, listCommands, nextCommand } from './service';
 
 const idParam = z.coerce.number().int().positive();
@@ -33,11 +34,7 @@ function commandId(request: FastifyRequest): number {
 }
 
 export function registerOfferRoutes(app: FastifyInstance, db: Db, extensionOrigin: string): void {
-  async function onlyExtension(request: FastifyRequest, reply: FastifyReply) {
-    if (request.headers.origin !== extensionOrigin) return reply.code(403).send({ error: 'forbidden_origin' });
-    reply.header('access-control-allow-origin', extensionOrigin).header('vary', 'Origin');
-  }
-  const extension = { onRequest: onlyExtension };
+  const extension = { onRequest: extensionGuard(extensionOrigin) };
 
   // ── Dashboard: plan, confirmación y seguimiento ──
 

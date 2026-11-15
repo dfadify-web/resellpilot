@@ -30,7 +30,11 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   try {
     response = await fetch(SERVER + path, {
       method: body === undefined ? 'GET' : 'POST',
-      headers: body === undefined ? {} : { 'content-type': 'application/json' },
+      // Chrome no siempre envía Origin desde la extensión: esta cabecera la identifica ante el server.
+      headers: {
+        'x-resellpilot-client': 'extension',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(30_000),
     });
@@ -38,6 +42,9 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
     throw new ServerDownError('ResellPilot no está en marcha en este equipo (pnpm dev).');
   }
   if (response.status === 409) throw new Error('Esta cuenta de Vinted no es la que ya está sincronizada. Cámbiala en Ajustes.');
+  if (response.status === 403) {
+    throw new Error('ResellPilot no reconoce la extensión (403). Actualiza el server (reinicia pnpm dev) y recarga la extensión.');
+  }
   if (!response.ok) throw new Error(`El server local rechazó los datos (${response.status}).`);
   return (await response.json()) as T;
 }

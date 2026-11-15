@@ -90,9 +90,29 @@ describe('quién puede enviar datos de Vinted', () => {
     const preflight = await app.inject({ method: 'OPTIONS', url: '/api/vinted/sync', headers: { origin: ORIGIN } });
     expect(preflight.statusCode).toBe(204);
     expect(preflight.headers['access-control-allow-origin']).toBe(ORIGIN);
-    expect(preflight.headers['access-control-allow-headers']).toBe('content-type');
+    expect(preflight.headers['access-control-allow-headers']).toBe('content-type, x-resellpilot-client');
     const other = await app.inject({ method: 'OPTIONS', url: '/api/vinted/sync', headers: { origin: 'https://evil.example' } });
     expect(other.statusCode).toBe(403);
+  });
+
+  it('acepta a la extensión aunque Chrome no envíe Origin (su cabecera propia la identifica)', async () => {
+    const own = { 'x-resellpilot-client': 'extension' };
+    const config = await app.inject({ method: 'GET', url: '/api/vinted/config', headers: own });
+    expect(config.statusCode).toBe(200);
+    expect(config.json()).toMatchObject({ read_min_interval_s: 3 });
+    expect((await app.inject({ method: 'GET', url: '/api/vinted/commands/next', headers: own })).statusCode).toBe(200);
+    const saved = await app.inject({ method: 'POST', url: '/api/vinted/sync', payload: snapshot(), headers: own });
+    expect(saved.statusCode).toBe(200);
+    expect(await listings()).toHaveLength(1);
+
+    // Una web no puede usar la cabecera para colarse: su navegador añade su propio Origin.
+    for (const origin of ['https://evil.example', 'null']) {
+      const res = await app.inject({ method: 'GET', url: '/api/vinted/config', headers: { ...own, origin } });
+      expect(res.statusCode, origin).toBe(403);
+    }
+    // Sin Origin ni cabecera, o con otro valor, tampoco.
+    expect((await app.inject({ method: 'GET', url: '/api/vinted/config', headers: { 'x-resellpilot-client': 'web' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: '/api/vinted/trends', payload: { max_id_now: null, results: [] } })).statusCode).toBe(403);
   });
 
   it('la configuración de lectura solo se da a la extensión', async () => {

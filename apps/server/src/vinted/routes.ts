@@ -1,8 +1,9 @@
 import { NOTIFICATION_TYPES } from '@resellpilot/shared';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db';
 import { NotFoundError, ValidationError } from '../errors';
+import { EXTENSION_HEADER, extensionGuard } from '../extension-guard';
 import { getSettings } from '../settings';
 import type { Notifier } from '../telegram';
 import { dueQueries } from '../trends/service';
@@ -76,19 +77,13 @@ const idParam = z.coerce.number().int().positive();
 export function registerVintedRoutes(app: FastifyInstance, db: Db, deps: VintedDeps): void {
   const { notifier, extensionOrigin } = deps;
 
-  /** Rutas de la extensión: solo su origen, y CORS solo para él. */
-  async function onlyExtension(request: FastifyRequest, reply: FastifyReply) {
-    if (request.headers.origin !== extensionOrigin) {
-      return reply.code(403).send({ error: 'forbidden_origin' });
-    }
-    reply.header('access-control-allow-origin', extensionOrigin).header('vary', 'Origin');
-  }
-  const extension = { onRequest: onlyExtension };
+  /** Rutas de la extensión: solo ella, y CORS solo para su origen. */
+  const extension = { onRequest: extensionGuard(extensionOrigin) };
 
   app.options('/api/vinted/*', extension, async (_request, reply) =>
     reply
       .header('access-control-allow-methods', 'GET, POST, OPTIONS')
-      .header('access-control-allow-headers', 'content-type')
+      .header('access-control-allow-headers', `content-type, ${EXTENSION_HEADER}`)
       .header('access-control-max-age', '600')
       .code(204)
       .send(),

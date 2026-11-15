@@ -6,11 +6,12 @@ import {
   templateIssues,
   type SettingKey,
 } from '@resellpilot/shared';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db';
 import { applyTrends, rescoreAll, scoringContext } from '../deals/service';
 import { ValidationError } from '../errors';
+import { extensionGuard } from '../extension-guard';
 import { getOfferTemplate } from '../offers/service';
 import { getRawSetting, getSettings, setRawSetting } from '../settings';
 import type { Notifier } from '../telegram';
@@ -83,10 +84,7 @@ function validSearchUrl(template: string): boolean {
 export function registerTrendRoutes(app: FastifyInstance, db: Db, deps: TrendsDeps): void {
   const { notifier, blocklistPath, extensionOrigin } = deps;
 
-  async function onlyExtension(request: FastifyRequest, reply: FastifyReply) {
-    if (request.headers.origin !== extensionOrigin) return reply.code(403).send({ error: 'forbidden_origin' });
-    reply.header('access-control-allow-origin', extensionOrigin).header('vary', 'Origin');
-  }
+  const onlyExtension = extensionGuard(extensionOrigin);
 
   /** La extensión envía las tarjetas de cada búsqueda pública; las estadísticas se calculan aquí. */
   app.post('/api/vinted/trends', { onRequest: onlyExtension, bodyLimit: 2 * 1024 * 1024 }, async (request) => {
