@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
 import { DEFAULT_EXTENSION_ID } from '../src/config';
 import { openDb, type Db } from '../src/db';
-import { advanceCommand, buildPlan, createCommand, getCommand, sentToday } from '../src/offers/service';
+import { advanceCommand, buildPlan, createCommand, getCommand, nextCommand, sentToday } from '../src/offers/service';
 
 const ORIGIN = `chrome-extension://${DEFAULT_EXTENSION_ID}`;
 
@@ -444,5 +444,37 @@ describe('API', () => {
     expect((await app.inject({ method: 'GET', url: '/api/vinted/commands/next', headers })).json()).toEqual({ command: null });
     expect((await app.inject({ method: 'POST', url: '/api/commands/9999/cancel' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'POST', url: `/api/vinted/commands/${command.id}/step`, payload: { last: { index: 0, ok: true, cookies: 'x' } }, headers })).statusCode).toBe(400);
+  });
+});
+
+describe('pausa de la extensión (Regla 5)', () => {
+  const pause = () => db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('VINTED_PAUSED', 'true')").run();
+
+  it('un comando en marcha se para en cuanto la lectura de Vinted se pausa', () => {
+    const ids = [addFavoriter(listingId, '501'), addFavoriter(listingId, '502')];
+    const command = createCommand(db, { type: 'send_offers', favoriter_ids: ids }, clock);
+    expect(step(command.id)).toMatchObject({ action: 'do', index: 0 });
+
+    pause();
+    expect(step(command.id, { index: 0, ok: true })).toMatchObject({ action: 'finished', status: 'failed' });
+    const view = getCommand(db, command.id);
+    expect(view).toMatchObject({ status: 'failed', done: 1 }); // el paso ya hecho cuenta
+    expect(view.error).toMatch(/en pausa/);
+  });
+
+  it('con la lectura en pausa no se entregan ni se crean comandos', async () => {
+    const command = createCommand(db, { type: 'send_offers', favoriter_ids: [addFavoriter(listingId, '501')] }, clock);
+    expect(nextCommand(db)).toMatchObject({ id: command.id });
+    pause();
+    expect(nextCommand(db)).toBeNull();
+
+    db.prepare('UPDATE commands SET status = ?').run('cancelled');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/commands',
+      payload: { type: 'send_offers', favoriter_ids: [addFavoriter(listingId, '502')] },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toMatch(/en pausa/);
   });
 });

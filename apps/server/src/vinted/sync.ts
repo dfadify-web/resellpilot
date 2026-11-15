@@ -172,6 +172,9 @@ export async function sendAlerts(db: Db, notifier: Notifier, alerts: readonly Al
   return null;
 }
 
+/** La extensión se pausó por una respuesta de Vinted (403, 429, captcha…). Regla 5. */
+export const isVintedPaused = (db: Db): boolean => getRawSetting(db, KEY_PAUSED) === 'true';
+
 export function getVintedStatus(db: Db): VintedStatus {
   return {
     last_sync_at: getRawSetting(db, KEY_LAST_SYNC),

@@ -220,10 +220,15 @@ export const parseWardrobePage = (json: unknown): Page<SyncListing> =>
 /** `entry_type` de Vinted para "X ha marcado como favorito tu artículo". */
 const ENTRY_FAVOURITE = 20;
 
+/**
+ * Tipo de una notificación. Solo el `entry_type` 20 está comprobado; el resto se deduce del texto
+ * con frases que hablan de TUS anuncios: «un artículo de tus favoritos ha bajado de precio» o
+ * «…se ha vendido» son de anuncios ajenos y no deben avisar como favorito o venta propios.
+ */
 function notificationType(entryType: unknown, text: string): NotificationType {
-  if (entryType === ENTRY_FAVOURITE || /marcado como favorito|favorit/i.test(text)) return 'favorito';
-  if (/has vendido|se ha vendido|ha comprado|vendid[oa]/i.test(text)) return 'venta';
-  if (/mensaje/i.test(text)) return 'mensaje';
+  if (entryType === ENTRY_FAVOURITE || /ha marcado como favorito tu/i.test(text)) return 'favorito';
+  if (/has vendido|te ha comprado|ha comprado tu|se ha vendido tu/i.test(text)) return 'venta';
+  if (/te ha (enviado|escrito)( un)? mensaje|nuevo mensaje de/i.test(text)) return 'mensaje';
   return 'otro';
 }
 
@@ -292,6 +297,29 @@ export function normalizeConversation(raw: Raw): SyncConversation | null {
 
 export const parseInboxPage = (json: unknown): Page<SyncConversation> =>
   pageOf(json, 'conversations', 'la bandeja de mensajes', normalizeConversation);
+
+// ───────────────────────── comandos (Fase 5) ─────────────────────────
+
+/** Comando en ejecución y pestaña de vinted.es que lo ejecuta. */
+export interface CommandRun {
+  id: number;
+  tabId: number;
+}
+
+/**
+ * Pestaña donde ejecutar un comando. Mientras exista, siempre la misma: si se entregara a la
+ * pestaña activa en cada aviso, al cambiar de pestaña se ejecutaría en dos a la vez. Si se cerró,
+ * la activa o la primera. `null` si no hay ninguna pestaña de vinted.es.
+ */
+export function pickCommandTab(
+  tabs: readonly { id?: number; active?: boolean }[],
+  run: CommandRun | null,
+  commandId: number,
+): number | null {
+  const open = tabs.filter((tab): tab is { id: number; active?: boolean } => typeof tab.id === 'number');
+  if (run !== null && run.id === commandId && open.some((tab) => tab.id === run.tabId)) return run.tabId;
+  return (open.find((tab) => tab.active) ?? open[0])?.id ?? null;
+}
 
 // ───────────────────────── reglas de la sync ─────────────────────────
 

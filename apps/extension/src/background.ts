@@ -2,7 +2,7 @@
  * Service worker. Programa la sync (cada ~15 min con jitter), pide al content script de una
  * pestaña de vinted.es que lea la cuenta y envía el resultado al server local.
  */
-import { nextSyncDelayMinutes } from '@resellpilot/shared';
+import { nextSyncDelayMinutes, pickCommandTab } from '@resellpilot/shared';
 import {
   COMMANDS_ALARM,
   SERVER,
@@ -146,15 +146,22 @@ async function checkCommands(): Promise<void> {
   } catch {
     return;
   }
-  if (!command) return;
+  if (!command) {
+    if (state.commandRun) await setState({ commandRun: null });
+    return;
+  }
   const tabs = await chrome.tabs.query({ url: VINTED_MATCH, discarded: false });
-  const tab = tabs.find((candidate) => candidate.active) ?? tabs[0];
-  if (tab?.id === undefined) {
+  // Siempre la misma pestaña mientras exista: si no, al cambiar de pestaña correría en dos a la vez.
+  const tabId = pickCommandTab(tabs, state.commandRun, command.id);
+  if (tabId === null) {
     await setState({ notice: 'Hay ofertas confirmadas: abre una pestaña de vinted.es para ejecutarlas.' });
     return;
   }
+  if (state.commandRun?.id !== command.id || state.commandRun.tabId !== tabId) {
+    await setState({ commandRun: { id: command.id, tabId } });
+  }
   const request: RunCommandRequest = { kind: 'run-command', command };
-  await chrome.tabs.sendMessage(tab.id, request).catch(() => undefined);
+  await chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
 }
 
 const scheduleCommands = () => chrome.alarms.create(COMMANDS_ALARM, { periodInMinutes: 1 });
@@ -217,7 +224,7 @@ chrome.runtime.onMessage.addListener((message: PanelMessage | ContentMessage, se
 
   if (message.kind === 'deactivate') {
     void (async () => {
-      await setState({ enabled: false, paused: false, notice: '', lease: null });
+      await setState({ enabled: false, paused: false, notice: '', lease: null, commandRun: null });
       await chrome.alarms.clear(SYNC_ALARM);
       await chrome.alarms.clear(COMMANDS_ALARM);
       await chrome.action.setBadgeText({ text: '' });

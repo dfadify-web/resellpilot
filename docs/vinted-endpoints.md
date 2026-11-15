@@ -65,7 +65,9 @@ Notificaciones de la campana. (`/api/v2/notifications` ya no existe: devuelve 40
   `subject_id` y el `link` (`/items/{id}/want_it/new?offering_id={user}`) dan el anuncio, y el
   nombre de usuario es la primera palabra del `body`. De aquí salen los **favoritos por anuncio**
   (tabla `favoriters`); Vinted no ofrece una lista de favoritos por anuncio para el vendedor.
-- Otros `entry_type` se clasifican por el texto (venta, mensaje u otro). Solo se ha observado el 20.
+- Otros `entry_type` se clasifican por el texto, y solo con frases sobre tus anuncios («has vendido»,
+  «se ha vendido tu», «te ha enviado un mensaje»). Los avisos de anuncios ajenos («un artículo de tus
+  favoritos ha bajado de precio / se ha vendido») quedan como `otro`. Solo se ha observado el 20.
 - **Efecto secundario**: pedir esta lista marca las notificaciones como leídas en Vinted, igual que
   abrir la campana. Por eso el estado «leída» de ResellPilot es propio y solo se toma de Vinted la
   primera vez que se ve cada notificación.
@@ -136,5 +138,6 @@ de Vinted son correlativos y crecen a un ritmo muy estable (~13,3 millones al d�
   comparar búsquedas entre sí, no una cifra exacta.
 
 ### Límites
-Como mucho 8 búsquedas por sync, `TRENDS_MAX_REQ_PER_HOUR` por hora y una medición por búsqueda cada
+Como mucho 8 búsquedas por sync, `TRENDS_MAX_REQ_PER_HOUR` por hora (contando también las peticiones de
+calibración) y una medición por búsqueda cada
 `TRENDS_CACHE_H` horas; todas con la pausa `READ_MIN_INTERVAL_S` y las mismas reglas de parada.

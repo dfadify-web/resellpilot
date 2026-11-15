@@ -1,4 +1,4 @@
-import type { RawSearchResult, SyncPayload } from '@resellpilot/shared';
+import type { CommandRun, RawSearchResult, SyncPayload } from '@resellpilot/shared';
 
 /** Background → content script: búsquedas públicas a medir (Fase 4). */
 export interface TrendsRequest {
@@ -33,6 +33,8 @@ export interface PanelState {
   lastSummary: string | null;
   /** Identifica la lectura en curso: si cambia, el content script se detiene. */
   lease: string | null;
+  /** Comando de ofertas en marcha y pestaña que lo ejecuta (siempre la misma). */
+  commandRun: CommandRun | null;
 }
 
 export const DEFAULT_STATE: PanelState = {
@@ -42,6 +44,7 @@ export const DEFAULT_STATE: PanelState = {
   lastSyncAt: null,
   lastSummary: null,
   lease: null,
+  commandRun: null,
 };
 
 export const getState = async (): Promise<PanelState> =>

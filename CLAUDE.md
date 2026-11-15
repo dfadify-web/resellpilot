@@ -60,11 +60,13 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - El ID de la extensión es fijo por la `key` del manifest (`DEFAULT_EXTENSION_ID`). Las rutas `/api/vinted/{config,sync,state}` solo aceptan ese origen; el esquema de la sync es `.strict()` para que nunca entren cookies ni tokens.
 - Toda petición que no sea GET con un `Origin` distinto del propio dashboard o de la extensión se rechaza (ninguna web puede escribir en la API local).
 - Leer las notificaciones las marca como leídas en Vinted: el estado «leída» de ResellPilot es propio (`/api/notifications/read`).
+- Tipos de notificación: favorito = `entry_type 20` o «ha marcado como favorito tu»; venta y mensaje solo con frases sobre los anuncios propios («has vendido», «te ha enviado un mensaje»…). Los avisos de anuncios ajenos («un artículo de tus favoritos ha bajado de precio / se ha vendido») son `otro` y no avisan por Telegram.
 - Favoriters salen de las notificaciones `entry_type = 20`. Ventas: anuncio conocido que pasa a `vendido`. Mensajes: conversaciones con `unread`. La primera sync no avisa por Telegram.
 - Un anuncio que desaparece del armario completo pasa a `no_visible`. Un item solo puede estar enlazado a un anuncio.
 
 ## Tendencias (Fase 4)
 - Lógica pura en `packages/shared/src/trends.ts`; server en `apps/server/src/trends`. La búsqueda de Vinted es HTML, no API: ver `docs/vinted-endpoints.md`.
+- `TRENDS_MAX_REQ_PER_HOUR` cuenta las búsquedas medidas y también las peticiones de calibración (`settings.TRENDS_CALIBRATIONS`, últimas 2 h), y reserva una para la siguiente calibración.
 - Consultas = semillas (Ajustes) + derivadas de items sin vender y de deals `nuevo` sin riesgo (primeras 3 palabras clave, mínimo 2). `GET /api/vinted/config` entrega a la extensión solo las que toca medir (caché, límite por hora, 8 por sync).
 - La fecha de publicación no existe en los resultados: la antigüedad se estima por el id (`IdClock`, anclas en `settings.VINTED_ID_ANCHORS`). `favs_per_day` es favoritos totales / días totales.
 - `deals.est_manual` (migración 003): el precio estimado escrito a mano no se pisa; el automático es (p25 + mediana) / 2 de la tendencia cuyas palabras están todas en el título (la más específica), con al menos 5 anuncios.
@@ -77,7 +79,8 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - El server es la autoridad (`apps/server/src/offers/service.ts`, `advanceCommand`): la extensión pide «siguiente paso» e informa del resultado. Ahí se aplican esperas aleatorias, límite diario (contado en `action_log`, acción `offer_sent`, día local), duplicados, conversación previa, revalidación de elegibilidad y paradas. Toda esa lógica está probada también en modo real (tests con `DRY_RUN=false` en la BD).
 - Elegible = anuncio `activo`, con precio, enlazado a un item `en_mano` (Regla 8) y cuyo título no tenga contenido prohibido. Regla 9 en `findForbiddenContent` (plantilla y mensaje final).
 - Un comando solo se crea tras la lista de confirmación del dashboard (Regla 6); solo uno activo a la vez. En real, cualquier fallo o resultado desconocido lo deja en `failed` y nunca se reenvía.
-- La extensión consulta `/api/vinted/commands/next` cada minuto y ejecuta en la pestaña de vinted.es con un overlay (shadow DOM) y botón PARAR.
+- La extensión consulta `/api/vinted/commands/next` cada minuto y ejecuta en la pestaña de vinted.es con un overlay (shadow DOM) y botón PARAR. Un comando va siempre a la misma pestaña mientras exista (`PanelState.commandRun`, `pickCommandTab`): si no, al cambiar de pestaña correría en dos a la vez.
+- Regla 5 también para comandos: con la lectura en pausa (`VINTED_PAUSED`) no se crean ni se entregan comandos, y uno en marcha termina en `failed` en su siguiente paso.
 
 ## Mejoras (Fase 6)
 - Bajadas sugeridas (`packages/shared/src/repricing.ts`, `GET /api/repricing`): anuncio stale → −5 %; pasado el doble de `STALE_DAYS`, −10 % (salvo que el −10 % no cubra el coste y el −5 % sí). Tras una bajada (`price_drop` o `price_drop_manual` en `action_log`) no se sugiere otra durante `STALE_DAYS`. Solo sugiere: el dashboard copia el precio y abre `vinted.es/items/{id}/edit`; el usuario lo cambia allí.

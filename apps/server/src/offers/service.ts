@@ -24,8 +24,11 @@ import type { Db } from '../db';
 import { logAction } from '../deals/repo';
 import { NotFoundError, ValidationError } from '../errors';
 import { getRawSetting, getSettings } from '../settings';
+import { isVintedPaused } from '../vinted/sync';
 
 const KEY_TEMPLATE = 'OFFER_TEMPLATE';
+const PAUSED_ERROR =
+  'Parada: la extensión está en pausa porque Vinted pidió una verificación o limitó las peticiones. Revisa vinted.es y reanuda antes de repetir.';
 /** Pausa simulada entre pasos en DRY_RUN (no se espera de verdad el minuto y pico). */
 const DRY_RUN_DELAY_S = 1;
 const MAX_LOG_LINES = 400;
@@ -242,6 +245,9 @@ export function createCommand(db: Db, input: CommandInput, now: Date = new Date(
   if (activeCommandId(db) !== null) {
     throw new ValidationError([{ path: 'command', message: 'ya hay un comando en curso: espera a que termine o cancélalo' }]);
   }
+  if (isVintedPaused(db)) {
+    throw new ValidationError([{ path: 'command', message: 'la extensión está en pausa (Vinted pidió verificación o limitó las peticiones): reanúdala primero' }]);
+  }
   const settings = getSettings(db);
   const listings = new Map((db.prepare(LISTING_SQL).all() as ListingRow[]).map((listing) => [listing.id, listing]));
   const steps: Step[] = [];
@@ -319,7 +325,8 @@ export function createCommand(db: Db, input: CommandInput, now: Date = new Date(
 /** Comando que la extensión debe ejecutar ahora (el más antiguo sin terminar), o `null`. */
 export function nextCommand(db: Db): { id: number; type: CommandType; total: number; dry_run: boolean } | null {
   const id = activeCommandId(db);
-  if (id === null) return null;
+  // Regla 5: con la lectura en pausa no se entrega nada (el siguiente paso lo detendrá).
+  if (id === null || isVintedPaused(db)) return null;
   const { row, payload } = load(db, id);
   return { id, type: row.type, total: payload.steps.length, dry_run: payload.dry_run };
 }
@@ -439,6 +446,9 @@ export function advanceCommand(db: Db, id: number, last: StepResult | undefined,
         payload.awaiting = null;
       }
     }
+
+    // Regla 5: si la lectura de Vinted se pausó (403, 429, captcha…), el comando para también.
+    if (isVintedPaused(db)) return finished('failed', PAUSED_ERROR);
 
     // 2. Siguiente paso válido (los que ya no proceden se saltan y quedan en el log).
     while (payload.cursor < payload.steps.length) {

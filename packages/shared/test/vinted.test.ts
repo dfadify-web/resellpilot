@@ -8,6 +8,7 @@ import {
   normalizeConversation,
   normalizeListing,
   normalizeNotification,
+  pickCommandTab,
   parseInboxPage,
   parseNotificationsPage,
   parseWardrobePage,
@@ -125,6 +126,17 @@ describe('notificaciones', () => {
     expect(normalizeNotification(rawNotification({ id: 'con espacios no' }))).toBeNull();
   });
 
+  it('no confunde avisos de anuncios ajenos con favoritos o ventas propios', () => {
+    const type = (body: string, entry_type = 7) => normalizeNotification(rawNotification({ entry_type, body, link: '/items/9' }))?.type;
+    expect(type('Un artículo de tus favoritos ha bajado de precio')).toBe('otro');
+    expect(type('Un artículo de tu lista de favoritos se ha vendido')).toBe('otro');
+    expect(type('El artículo que te gustaba ya está vendido')).toBe('otro');
+    expect(type('luis ha marcado como favorito tu artículo "Termo"')).toBe('favorito');
+    expect(type('Se ha vendido tu artículo "Termo"')).toBe('venta');
+    expect(type('marta te ha enviado un mensaje')).toBe('mensaje');
+    expect(type('Lee nuestros consejos sobre mensajes')).toBe('otro');
+  });
+
   it('lee la página', () => {
     const page = parseNotificationsPage({ notifications: [rawNotification()], pagination: { total_pages: 2 } });
     expect(page.rows).toHaveLength(1);
@@ -160,6 +172,21 @@ describe('bandeja de mensajes', () => {
     const page = parseInboxPage({ conversations: [rawConversation(), rawConversation({ id: 2, unread: false })] });
     expect(page.rows.map((row) => row.user_id)).toEqual(['555', '555']);
     expect(() => parseInboxPage({})).toThrow(/bandeja/);
+  });
+});
+
+describe('pestaña de un comando', () => {
+  const tabs = [{ id: 1 }, { id: 2, active: true }, { id: 3 }];
+  it('sigue en la misma pestaña aunque cambie la activa', () => {
+    expect(pickCommandTab(tabs, { id: 9, tabId: 3 }, 9)).toBe(3);
+  });
+  it('un comando nuevo o una pestaña cerrada van a la activa o a la primera', () => {
+    expect(pickCommandTab(tabs, null, 9)).toBe(2);
+    expect(pickCommandTab(tabs, { id: 8, tabId: 3 }, 9)).toBe(2);
+    expect(pickCommandTab(tabs, { id: 9, tabId: 7 }, 9)).toBe(2);
+    expect(pickCommandTab([{ id: 4 }, { id: 5 }], null, 9)).toBe(4);
+    expect(pickCommandTab([{}], null, 9)).toBeNull();
+    expect(pickCommandTab([], null, 9)).toBeNull();
   });
 });
 

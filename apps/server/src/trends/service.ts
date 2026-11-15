@@ -17,6 +17,8 @@ import { getRawSetting, getSettings, setRawSetting } from '../settings';
 
 const KEY_SEEDS = 'TREND_SEEDS';
 const KEY_ANCHORS = 'VINTED_ID_ANCHORS';
+/** Momentos de las peticiones de calibración (`/catalog?order=newest_first`), para el límite por hora. */
+const KEY_CALIBRATIONS = 'TRENDS_CALIBRATIONS';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -102,8 +104,21 @@ export function latestTrends(db: Db): TrendRow[] {
     .all() as TrendRow[];
 }
 
+function calibrations(db: Db): string[] {
+  const list = readJson<unknown>(db, KEY_CALIBRATIONS, []);
+  return Array.isArray(list) ? list.filter((at): at is string => typeof at === 'string') : [];
+}
+
+/** Apunta una petición de calibración. Solo se guardan las de las últimas 2 h. */
+function recordCalibration(db: Db, now: Date): void {
+  const since = new Date(now.getTime() - 2 * HOUR_MS).toISOString();
+  setRawSetting(db, KEY_CALIBRATIONS, JSON.stringify([...calibrations(db).filter((at) => at > since), now.toISOString()]));
+}
+
+/** Peticiones a Vinted desde `sinceIso`: una por búsqueda medida más las de calibración. */
 const requestsSince = (db: Db, sinceIso: string): number =>
-  (db.prepare('SELECT COUNT(*) AS n FROM trends WHERE computed_at > ?').get(sinceIso) as { n: number }).n;
+  (db.prepare('SELECT COUNT(*) AS n FROM trends WHERE computed_at > ?').get(sinceIso) as { n: number }).n +
+  calibrations(db).filter((at) => at > sinceIso).length;
 
 /**
  * Consultas que toca medir ahora: sin medición dentro de `TRENDS_CACHE_H`, respetando
@@ -191,6 +206,7 @@ export function recordTrends(db: Db, payload: TrendsPayload, now: Date = new Dat
         }
       }
     }
+    if (payload.max_id_now !== null) recordCalibration(db, now);
     const clock = maxId !== null ? recordAnchor(db, maxId, now) : getIdClock(db);
     const insert = db.prepare(
       `INSERT INTO trends (query, median_price, p25_price, listings_count, avg_favs, favs_per_day, computed_at)

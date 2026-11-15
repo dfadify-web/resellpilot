@@ -103,11 +103,14 @@ describe('consultas a medir', () => {
     const later = new Date(now.getTime() + 7 * 3_600_000);
     expect(dueQueries(db, later).slice(0, 4).sort()).toEqual([...second].sort());
 
-    // Límite por hora: 8 hechas en la última hora + 1 reservada para calibrar → caben 1 más con un máximo de 10.
-    await put({ settings: { TRENDS_MAX_REQ_PER_HOUR: 10 } });
+    // Límite por hora: 8 búsquedas + 1 calibración hechas en la última hora + 1 reservada para la
+    // próxima calibración → con un máximo de 11 cabe 1 más; con 10, ninguna.
+    await put({ settings: { TRENDS_MAX_REQ_PER_HOUR: 11 } });
     expect(dueQueries(db, now)).toHaveLength(1);
-    await put({ settings: { TRENDS_MAX_REQ_PER_HOUR: 9 } });
+    await put({ settings: { TRENDS_MAX_REQ_PER_HOUR: 10 } });
     expect(dueQueries(db, now)).toEqual([]);
+    // Pasada la hora, las peticiones anteriores ya no cuentan.
+    expect(dueQueries(db, new Date(now.getTime() + 61 * 60_000))).toHaveLength(4);
     await put({ settings: { TRENDS_MAX_REQ_PER_HOUR: 0 } });
     expect(dueQueries(db, later)).toEqual([]);
   });
