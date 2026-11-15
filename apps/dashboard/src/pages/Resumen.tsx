@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, describeError, type SummaryResponse } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { ReportsPanel } from '../components/ReportsPanel';
 import { eur, monthName, num, pct, shortDate, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
 
@@ -153,6 +154,8 @@ export function Resumen() {
               </div>
             </div>
           </div>
+
+          <ReportsPanel />
         </>
       )}
 

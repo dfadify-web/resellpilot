@@ -1,7 +1,7 @@
 import type { CommandType, CommandView, OfferPlan, OfferPlanRow } from '@resellpilot/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
-import { eur } from '../format';
+import { eur, vintedEditUrl } from '../format';
 import { ui } from '../ui';
 import { ErrorNote, type Problem } from './ErrorNote';
 import { Modal } from './Modal';
@@ -135,6 +135,8 @@ export function OffersDialog({ type, plan, onlyListingId, onClose, onCreated }: 
             <>
               <strong className="text-accent">Modo simulación.</strong> No se envía ni se cambia nada en Vinted: verás
               exactamente qué se haría, paso a paso, en el registro.
+              {type === 'price_drop' &&
+                ' Si bajas el precio tú en Vinted, la siguiente sync lo registra y da por avisados a esos favoritos.'}
             </>
           ) : (
             <>Esto escribe en tu cuenta de Vinted. Revisa la lista antes de confirmar.</>
@@ -167,6 +169,16 @@ export function OffersDialog({ type, plan, onlyListingId, onClose, onCreated }: 
                       {eur(row.price)} → <span className="text-paper">{eur(row.new_price)}</span> · {row.pending}{' '}
                       {row.pending === 1 ? 'favorito sin ofertar' : 'favoritos sin ofertar'}
                     </span>
+                    {plan.dry_run && (
+                      <a
+                        href={vintedEditUrl(row.vinted_id)}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="mt-1 inline-block text-[11px] uppercase tracking-[0.14em] text-paper underline"
+                      >
+                        Bajarlo a mano en Vinted ↗
+                      </a>
+                    )}
                   </span>
                 </label>
               ) : (

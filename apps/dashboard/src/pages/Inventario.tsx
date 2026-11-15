@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'reac
 import { EXPORT_CSV_URL, api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { ItemDialog } from '../components/ItemDialog';
+import { ListingTextDialog } from '../components/ListingTextDialog';
 import { SellDialog } from '../components/SellDialog';
 import { eur, pct, shortDate, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
@@ -31,6 +32,7 @@ export function Inventario() {
   const [filter, setFilter] = useState<Filter>('todos');
   const [editing, setEditing] = useState<ItemWithCalc | 'new' | null>(null);
   const [selling, setSelling] = useState<ItemWithCalc | null>(null);
+  const [writing, setWriting] = useState<ItemWithCalc | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -158,7 +160,7 @@ export function Inventario() {
       </div>
 
       <div className="mt-4 overflow-x-auto border border-line">
-        <table className="w-full min-w-[820px] border-collapse text-sm">
+        <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead className="border-b border-line bg-panel">
             <tr>
               <th className={ui.th}>Item</th>
@@ -223,6 +225,11 @@ export function Inventario() {
                       Vender
                     </button>
                   )}
+                  {item.stock !== 'vendido' && item.stock !== 'devuelto' && (
+                    <button type="button" className={`${ui.link} mr-4`} onClick={() => setWriting(item)}>
+                      Anuncio
+                    </button>
+                  )}
                   <button type="button" className={`${ui.link} mr-4`} disabled={busy} onClick={() => setEditing(item)}>
                     Editar
                   </button>
@@ -254,7 +261,8 @@ export function Inventario() {
       </div>
 
       <p className="mt-3 max-w-prose text-xs text-muted">
-        Importar añade filas nuevas (no actualiza las existentes). Columnas: name (obligatoria), brand,
+«Anuncio» genera el título, la descripción y los hashtags para copiarlos en Vinted. Importar añade filas
+        nuevas (no actualiza las existentes). Columnas: name (obligatoria), brand,
         source_url, cost, shipping_cost, extra_costs, stock, sold_price, sold_at, created_at.
       </p>
 
@@ -262,6 +270,7 @@ export function Inventario() {
         <ItemDialog item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={afterSave} />
       )}
       {selling !== null && <SellDialog item={selling} onClose={() => setSelling(null)} onSaved={afterSave} />}
+      {writing !== null && <ListingTextDialog item={writing} onClose={() => setWriting(null)} />}
     </section>
   );
 }

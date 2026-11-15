@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
-import { BLOCKLIST_PATH, DASHBOARD_DIR, DEFAULT_EXTENSION_ID, SOURCES_PATH } from './config';
+import { BLOCKLIST_PATH, DASHBOARD_DIR, DEFAULT_EXTENSION_ID, PRIVATE_FEED_PATH, SOURCES_PATH } from './config';
 import type { Db } from './db';
 import { Ingestor } from './deals/ingest';
 import { registerDealRoutes, type DealsDeps } from './deals/routes';
@@ -11,6 +11,7 @@ import { httpFetcher } from './http';
 import { registerItemRoutes } from './items/routes';
 import { nullNotifier } from './telegram';
 import { registerOfferRoutes } from './offers/routes';
+import { registerReportRoutes } from './reports/routes';
 import { registerTrendRoutes } from './trends/routes';
 import { registerVintedRoutes } from './vinted/routes';
 
@@ -25,6 +26,7 @@ export function defaultDealsDeps(db: Db): DealsDeps {
       notifier: nullNotifier,
       sourcesPath: SOURCES_PATH,
       blocklistPath: BLOCKLIST_PATH,
+      privateFeedPath: PRIVATE_FEED_PATH,
     }),
   };
 }
@@ -106,6 +108,7 @@ export async function buildApp({ db, dashboard, deals, extensionId }: AppOptions
   registerDealRoutes(app, db, dealsDeps);
   registerVintedRoutes(app, db, { notifier: dealsDeps.notifier, extensionOrigin });
   registerOfferRoutes(app, db, extensionOrigin);
+  registerReportRoutes(app, db, { notifier: dealsDeps.notifier, blocklistPath: dealsDeps.blocklistPath });
   registerTrendRoutes(app, db, {
     notifier: dealsDeps.notifier,
     blocklistPath: dealsDeps.blocklistPath,

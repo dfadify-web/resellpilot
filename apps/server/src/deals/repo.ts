@@ -91,8 +91,13 @@ export function markLinkSeen(db: Db, link: string, dealId: number | null): void 
   db.prepare('INSERT OR IGNORE INTO seen_links (link, deal_id) VALUES (?, ?)').run(link, dealId);
 }
 
-export function logAction(db: Db, action: string, target: string, result: string): void {
-  db.prepare('INSERT INTO action_log (action, target, result) VALUES (?, ?, ?)').run(action, target, result);
+/** `ts` (ISO) solo hace falta cuando el momento lo decide quien llama (reloj inyectado); si no, ahora. */
+export function logAction(db: Db, action: string, target: string, result: string, ts?: string): void {
+  if (ts === undefined) {
+    db.prepare('INSERT INTO action_log (action, target, result) VALUES (?, ?, ?)').run(action, target, result);
+  } else {
+    db.prepare('INSERT INTO action_log (ts, action, target, result) VALUES (?, ?, ?, ?)').run(ts, action, target, result);
+  }
 }
 
 export function hasAction(db: Db, action: string, target: string): boolean {

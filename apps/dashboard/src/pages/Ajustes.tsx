@@ -232,7 +232,8 @@ export function Ajustes() {
                 </dd>
                 <dd className="mt-1 text-xs text-muted">
                   Las ofertas y bajadas de precio solo se simulan: ResellPilot todavía no escribe nada en Vinted. No
-                  se puede desactivar hasta que la escritura real esté verificada.
+                  se puede desactivar hasta que la escritura real esté verificada. Mientras tanto, los precios se
+                  bajan a mano con «Editar en Vinted» (Anuncios) y la sync lo registra.
                 </dd>
               </div>
               <div className="px-4 py-3">

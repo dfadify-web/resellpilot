@@ -79,8 +79,11 @@ function messageFor(db: Db, settings: Settings, listing: ListingRow, username: s
 /** Mensajes reales enviados hoy (día local). Persistente: se cuenta en `action_log`. */
 export function sentToday(db: Db, now: Date = new Date()): number {
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
   return (
-    db.prepare("SELECT COUNT(*) AS n FROM action_log WHERE action = 'offer_sent' AND ts >= ?").get(midnight) as { n: number }
+    db.prepare("SELECT COUNT(*) AS n FROM action_log WHERE action = 'offer_sent' AND ts >= ? AND ts < ?").get(midnight, nextMidnight) as {
+      n: number;
+    }
   ).n;
 }
 
@@ -380,7 +383,7 @@ export function advanceCommand(db: Db, id: number, last: StepResult | undefined,
       payload.awaiting = null;
       payload.log.push({ at, ok: status === 'done', text: error ?? 'Terminado.' });
       save(db, id, payload, status, error);
-      logAction(db, `command_${status}`, String(id), error ?? `${payload.done}/${payload.steps.length}`);
+      logAction(db, `command_${status}`, String(id), error ?? `${payload.done}/${payload.steps.length}`, at);
       return { action: 'finished', status, error };
     };
 
@@ -407,26 +410,26 @@ export function advanceCommand(db: Db, id: number, last: StepResult | undefined,
         if (step.kind === 'message') {
           const wait = randomDelaySeconds(settings.MSG_DELAY_MIN_S, settings.MSG_DELAY_MAX_S, random());
           if (payload.dry_run) {
-            logAction(db, 'offer_dry_run', `${step.listing_vinted_id}:${step.user_id}`, step.message);
+            logAction(db, 'offer_dry_run', `${step.listing_vinted_id}:${step.user_id}`, step.message, at);
             payload.log.push({ at, ok: true, text: `${mode}mensaje a ${step.username ?? step.user_id} por «${step.title}»: ${step.message} (espera real: ${wait} s)` });
             payload.next_allowed_at = new Date(now.getTime() + DRY_RUN_DELAY_S * 1000).toISOString();
           } else {
             db.prepare('UPDATE favoriters SET offered_at = ? WHERE listing_id = ? AND vinted_user_id = ?').run(at, step.listing_id, step.user_id);
-            logAction(db, 'offer_sent', `${step.listing_vinted_id}:${step.user_id}`, step.message);
+            logAction(db, 'offer_sent', `${step.listing_vinted_id}:${step.user_id}`, step.message, at);
             payload.log.push({ at, ok: true, text: `Mensaje enviado a ${step.username ?? step.user_id} por «${step.title}». Siguiente en ${wait} s.` });
             payload.next_allowed_at = new Date(now.getTime() + wait * 1000).toISOString();
           }
         } else {
           const change = `${formatOfferPrice(step.old_price)} € → ${formatOfferPrice(step.new_price)} €`;
           if (payload.dry_run) {
-            logAction(db, 'price_drop_dry_run', step.listing_vinted_id, change);
+            logAction(db, 'price_drop_dry_run', step.listing_vinted_id, change, at);
             payload.log.push({ at, ok: true, text: `${mode}bajaría «${step.title}»: ${change}` });
             payload.next_allowed_at = new Date(now.getTime() + DRY_RUN_DELAY_S * 1000).toISOString();
           } else {
             db.prepare('UPDATE listings SET price = ? WHERE id = ?').run(step.new_price, step.listing_id);
             // Vinted avisa de la bajada a quienes dieron favorito: cuentan como ofertados.
             db.prepare('UPDATE favoriters SET offered_at = ? WHERE listing_id = ? AND offered_at IS NULL').run(at, step.listing_id);
-            logAction(db, 'price_drop', step.listing_vinted_id, change);
+            logAction(db, 'price_drop', step.listing_vinted_id, change, at);
             payload.log.push({ at, ok: true, text: `Precio bajado en «${step.title}»: ${change}` });
             payload.next_allowed_at = new Date(now.getTime() + settings.READ_MIN_INTERVAL_S * 1000).toISOString();
           }

@@ -11,6 +11,8 @@ export const DASHBOARD_DIR = resolve(ROOT_DIR, 'apps/dashboard');
 /** Fuentes de oportunidades y lista de marcas: archivos editables en la raíz. */
 export const SOURCES_PATH = resolve(ROOT_DIR, 'sources.json');
 export const BLOCKLIST_PATH = resolve(ROOT_DIR, 'brand-blocklist.json');
+/** Mensajes de grupos privados de Telegram que deja el puente opcional `tools/telethon_bridge.py`. */
+export const PRIVATE_FEED_PATH = resolve(ROOT_DIR, 'data/telegram-private.json');
 
 /** ID fijo de la extensión: lo determina la clave `key` de `apps/extension/manifest.config.ts`. */
 export const DEFAULT_EXTENSION_ID = 'kjgfhjhbgcpdodeknaofoemgeccffgok';

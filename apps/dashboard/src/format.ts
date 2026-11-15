@@ -21,6 +21,9 @@ export const shortDate = (iso: string | null): string => {
   return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
 };
 
+/** Página de edición de un anuncio propio en Vinted (comprobada el 2026-11-15). El precio lo cambia siempre el usuario allí. */
+export const vintedEditUrl = (vintedId: string): string => `https://www.vinted.es/items/${vintedId}/edit`;
+
 /** `2026-11` → `noviembre 2026`. */
 export const monthName = (key: string): string => {
   const [year, month] = key.split('-').map(Number);

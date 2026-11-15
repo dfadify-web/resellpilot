@@ -1,0 +1,2 @@
+# Solo para el puente opcional de grupos privados de Telegram (tools/telethon_bridge.py).
+telethon>=1.36,<2

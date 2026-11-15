@@ -11,3 +11,6 @@ export * from './scoring';
 export * from './vinted';
 export * from './trends';
 export * from './offers';
+export * from './repricing';
+export * from './listingText';
+export * from './reports';

@@ -89,6 +89,18 @@ Lista de conversaciones (solo el resumen; no se abre ninguna, porque eso la marc
 ### Ventas
 No hay un endpoint de ventas: se detectan cuando un anuncio conocido pasa a `vendido` entre dos syncs.
 
+### Bajadas de precio hechas a mano
+Si un anuncio activo conocido llega en una sync con un precio menor que el guardado, se anota en
+`action_log` (`price_drop_manual`, «20 € → 18 €»). Si la bajada alcanza `OFFER_DISCOUNT_PCT`, sus
+favoritos pendientes se dan por ofertados (Vinted avisa de la bajada a quien dio favorito).
+
+### Página de edición de un anuncio (no la toca la extensión)
+`https://www.vinted.es/items/{id}/edit` — comprobada el 2026-11-15 con un anuncio propio, solo
+abriéndola: título «Editar anuncio», campo `input#price` (`data-testid="price-input--input"`,
+valor «42,00 €») y botón «Guardar». El dashboard solo enlaza a esta página («Editar en Vinted»)
+y copia el precio sugerido al portapapeles: quien cambia el precio y pulsa Guardar es el usuario.
+ResellPilot no rellena ni envía ese formulario.
+
 ### Visto pero no usado
 - `GET /api/v2/transactions/{id}/offers/seller_options`: opciones de oferta del vendedor. Lo carga
   la web al abrir una conversación; candidato para la Fase 5.

@@ -4,12 +4,14 @@ import {
   type ListingView,
   type CommandType,
   type OfferPlanRow,
+  type RepricingRow,
   type VintedStatus,
 } from '@resellpilot/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { CommandBox, OffersDialog, useOffers } from '../components/OffersPanel';
+import { RepricingPanel } from '../components/RepricingPanel';
 import { VintedStatusBar } from '../components/VintedStatusBar';
 import { eur, shortDate } from '../format';
 import { ui, usePageTitle } from '../ui';
@@ -31,6 +33,7 @@ export function Anuncios() {
   const [listings, setListings] = useState<ListingView[] | null>(null);
   const [items, setItems] = useState<ItemWithCalc[]>([]);
   const [status, setStatus] = useState<VintedStatus | null>(null);
+  const [repricing, setRepricing] = useState<RepricingRow[]>([]);
   const [filter, setFilter] = useState<Filter>('en_venta');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -39,10 +42,16 @@ export function Anuncios() {
 
   const reload = useCallback(async () => {
     try {
-      const [listingRows, itemRows, vinted] = await Promise.all([api.listListings(), api.listItems(), api.vintedStatus()]);
+      const [listingRows, itemRows, vinted, suggestions] = await Promise.all([
+        api.listListings(),
+        api.listItems(),
+        api.vintedStatus(),
+        api.repricing(),
+      ]);
       setListings(listingRows);
       setItems(itemRows);
       setStatus(vinted);
+      setRepricing(suggestions);
     } catch (error) {
       setProblem(describeError(error));
     }
@@ -247,6 +256,8 @@ export function Anuncios() {
         Stale = en venta y con más días publicados que <code>STALE_DAYS</code>. La fecha de publicación es la de
         subida de la primera foto. Enlazar un anuncio con su item permite saber qué stock tienes en mano.
       </p>
+      <RepricingPanel rows={repricing} />
+
       {dialog && offers.plan && (
         <OffersDialog
           type={dialog.type}

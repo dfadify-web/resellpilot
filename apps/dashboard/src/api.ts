@@ -8,11 +8,13 @@ import type {
   NotificationView,
   VintedStatus,
   ItemWithCalc,
+  RepricingRow,
   Settings,
   SourceStatus,
   TrendView,
   Summary,
   ValidationIssue,
+  WeeklyReport,
 } from '@resellpilot/shared';
 
 export class ApiError extends Error {
@@ -98,6 +100,18 @@ export interface SettingsInput {
   offer_template?: string;
 }
 
+export interface WeeklyReportsResponse {
+  current: WeeklyReport;
+  previous: WeeklyReport;
+}
+
+export interface DailyReportResponse {
+  /** Texto del resumen tal como llegaría a Telegram. */
+  text: string;
+  telegram: boolean;
+  sent_today: boolean;
+}
+
 export type CommandInput =
   | { type: 'send_offers'; favoriter_ids: number[] }
   | { type: 'price_drop'; listing_ids: number[] };
@@ -137,10 +151,16 @@ export const api = {
   listCommands: () => request<CommandView[]>('/api/commands'),
   createCommand: (input: CommandInput) => request<CommandView>('/api/commands', json('POST', input)),
   cancelCommand: (id: number) => request<CommandView>(`/api/commands/${id}/cancel`, { method: 'POST' }),
+  repricing: () => request<RepricingRow[]>('/api/repricing'),
+  weeklyReports: () => request<WeeklyReportsResponse>('/api/reports/weekly'),
+  dailyReport: () => request<DailyReportResponse>('/api/reports/daily'),
+  sendDailyReport: () => request<{ ok: boolean; error?: string }>('/api/reports/daily/send', { method: 'POST' }),
   testTelegram: () => request<{ ok: boolean; error?: string }>('/api/telegram/test', { method: 'POST' }),
 };
 
 export const EXPORT_CSV_URL = '/api/items/export.csv';
+/** CSV del informe semanal de la semana que empieza ese lunes (`AAAA-MM-DD`). */
+export const weeklyCsvUrl = (monday: string): string => `/api/reports/weekly.csv?week=${monday}`;
 
 /** Mensaje y lista de problemas de cualquier error, para mostrarlo en la UI. */
 export function describeError(error: unknown): { message: string; issues: ValidationIssue[] } {

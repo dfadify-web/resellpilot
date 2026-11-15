@@ -1,6 +1,8 @@
 import {
   daysListed,
+  formatOfferPrice,
   isStale,
+  offerPrice,
   type ListingStatus,
   type ListingView,
   type NotificationType,
@@ -56,10 +58,16 @@ export function applySync(db: Db, payload: SyncPayload, now: Date = new Date()):
   let newEvents = 0;
 
   db.transaction(() => {
-    const previous = new Map(
-      (db.prepare('SELECT vinted_id, status FROM listings').all() as { vinted_id: string; status: string | null }[]).map(
-        (row) => [row.vinted_id, row.status],
-      ),
+    const known = db.prepare('SELECT vinted_id, status, price FROM listings').all() as {
+      vinted_id: string;
+      status: string | null;
+      price: number | null;
+    }[];
+    const previous = new Map(known.map((row) => [row.vinted_id, row.status]));
+    const previousPrice = new Map(known.map((row) => [row.vinted_id, row.price]));
+    const discountPct = getSettings(db).OFFER_DISCOUNT_PCT;
+    const markOffered = db.prepare(
+      'UPDATE favoriters SET offered_at = ? WHERE offered_at IS NULL AND listing_id = (SELECT id FROM listings WHERE vinted_id = ?)',
     );
 
     const upsert = db.prepare(
@@ -81,6 +89,14 @@ export function applySync(db: Db, payload: SyncPayload, now: Date = new Date()):
 
     for (const listing of payload.listings) {
       upsert.run({ ...listing, at });
+
+      // Bajada de precio hecha a mano en Vinted (p. ej. desde una sugerencia): queda registrada.
+      // Si llega al descuento de las ofertas, Vinted ya ha avisado a quienes dieron favorito.
+      const oldPrice = previousPrice.get(listing.vinted_id) ?? null;
+      if (listing.status === 'activo' && oldPrice !== null && listing.price !== null && listing.price < oldPrice) {
+        logAction(db, 'price_drop_manual', listing.vinted_id, `${formatOfferPrice(oldPrice)} € → ${formatOfferPrice(listing.price)} €`, at);
+        if (listing.price <= offerPrice(oldPrice, discountPct)) markOffered.run(at, listing.vinted_id);
+      }
 
       // Venta: un anuncio que ya conocíamos pasa a vendido.
       const before = previous.get(listing.vinted_id);

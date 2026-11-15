@@ -35,6 +35,31 @@ function cleanTitle(text: string): string | null {
 
 // ───────────────────────── enlaces de las fuentes ─────────────────────────
 
+/** Mensajes de un grupo privado de Telegram, tal como los deja `tools/telethon_bridge.py`. */
+export interface PrivateFeed {
+  /** Cuándo leyó el puente por última vez (ISO). */
+  updated_at: string | null;
+  /** Mensajes recientes por URL de la fuente (la misma de `sources.json`). */
+  sources: Record<string, { text: string }[]>;
+}
+
+/** Lee el archivo del puente. Tolera campos de más; ignora lo que no sean mensajes con texto. */
+export function parsePrivateFeed(json: unknown): PrivateFeed {
+  const root = (json !== null && typeof json === 'object' ? json : {}) as { updated_at?: unknown; sources?: unknown };
+  const sources: PrivateFeed['sources'] = {};
+  if (root.sources !== null && typeof root.sources === 'object' && !Array.isArray(root.sources)) {
+    for (const [url, messages] of Object.entries(root.sources as Record<string, unknown>)) {
+      if (!Array.isArray(messages)) continue;
+      sources[url] = messages
+        .map((message) => (message as { text?: unknown } | null)?.text)
+        .filter((text): text is string => typeof text === 'string' && text.trim() !== '')
+        .map((text) => ({ text: text.slice(0, 4000) }));
+    }
+  }
+  const updated = typeof root.updated_at === 'string' && !Number.isNaN(Date.parse(root.updated_at)) ? root.updated_at : null;
+  return { updated_at: updated, sources };
+}
+
 /** Candidato encontrado en una fuente, con las pistas que dé el propio mensaje. */
 export interface LinkCandidate {
   link: string;
@@ -59,6 +84,22 @@ export function extractLinks(html: string, linkRegex: string, baseUrl: string): 
     if (href) links.add(href);
   }
   return [...links];
+}
+
+/** Enlaces de los mensajes de un grupo privado, con la primera línea de texto como pista de título. */
+export function parsePrivateMessages(messages: readonly { text: string }[], linkRegex: string): LinkCandidate[] {
+  const candidates = new Map<string, LinkCandidate>();
+  for (const { text } of messages) {
+    const firstLine = text
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line !== '' && !/^\P{L}*https?:\/\//u.test(line));
+    const title = firstLine ? cleanTitle(firstLine.replace(/https?:\/\/\S+/g, '')) : null;
+    for (const link of extractLinks(text, linkRegex, 'https://t.me/')) {
+      if (!candidates.has(link)) candidates.set(link, { link, title, image: null });
+    }
+  }
+  return [...candidates.values()];
 }
 
 /**

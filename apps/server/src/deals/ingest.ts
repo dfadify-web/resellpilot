@@ -1,8 +1,16 @@
+import { existsSync, readFileSync } from 'node:fs';
 import type { SourceStatus } from '@resellpilot/shared';
 import type { Db } from '../db';
 import { fetchFollow, type Fetcher } from '../http';
 import type { Notifier } from '../telegram';
-import { extractLinks, parseProductPage, parseTelegramChannel, type LinkCandidate } from './parsers';
+import {
+  extractLinks,
+  parsePrivateFeed,
+  parsePrivateMessages,
+  parseProductPage,
+  parseTelegramChannel,
+  type LinkCandidate,
+} from './parsers';
 import { getDealByUrl, hasSeenLink, insertDeal, markLinkSeen } from './repo';
 import {
   applyTrends,
@@ -23,6 +31,8 @@ export interface IngestOptions {
   notifier: Notifier;
   sourcesPath: string;
   blocklistPath: string;
+  /** Archivo que deja el puente de Telethon con los mensajes de los grupos privados (opcional). */
+  privateFeedPath?: string;
   /** Pausa entre peticiones de producto, para no cargar las webs de origen. */
   delayMs?: number;
   /** Máximo de enlaces nuevos procesados por fuente y ejecución. */
@@ -30,6 +40,8 @@ export interface IngestOptions {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Si el puente lleva más de esto sin escribir, se avisa de que seguramente está parado. */
+const PRIVATE_FEED_MAX_AGE_MS = 60 * 60 * 1000;
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : 'Error desconocido');
 
 /** Ingesta de oportunidades: lee cada fuente, saca enlaces, los resuelve y crea deals. */
@@ -100,17 +112,18 @@ export class Ingestor {
 
   private async runSource(source: Source, status: SourceStatus, context: ScoringContext): Promise<void> {
     const { db, fetcher } = this.options;
+    let candidates: LinkCandidate[];
+    let warning: string | null = null;
     if (source.type === 'telegram_private') {
-      throw new Error('Los grupos privados necesitan Telethon (opcional, Fase 6).');
+      ({ candidates, warning } = this.privateCandidates(source));
+    } else {
+      const page = await fetchFollow(fetcher, source.url);
+      if (page.status !== 200) throw new Error(`La fuente respondió ${page.status}.`);
+      candidates =
+        source.type === 'telegram_public'
+          ? parseTelegramChannel(page.text, source.link_regex, page.url)
+          : extractLinks(page.text, source.link_regex, page.url).map((link) => ({ link, title: null, image: null }));
     }
-
-    const page = await fetchFollow(fetcher, source.url);
-    if (page.status !== 200) throw new Error(`La fuente respondió ${page.status}.`);
-
-    const candidates: LinkCandidate[] =
-      source.type === 'telegram_public'
-        ? parseTelegramChannel(page.text, source.link_regex, page.url)
-        : extractLinks(page.text, source.link_regex, page.url).map((link) => ({ link, title: null, image: null }));
     status.found = candidates.length;
 
     const fresh = candidates.filter((candidate) => !hasSeenLink(db, candidate.link)).slice(0, this.maxNewPerRun);
@@ -126,6 +139,33 @@ export class Ingestor {
       }
     }
     if (failures > 0) throw new Error(`${failures} enlace(s) no se pudieron abrir; se reintentarán.`);
+    if (warning) throw new Error(warning);
+  }
+
+  /**
+   * Grupo privado: el server no entra en Telegram. Lee los mensajes que deja en disco el puente
+   * opcional de Telethon (`tools/telethon_bridge.py`), que corre con la cuenta del usuario.
+   */
+  private privateCandidates(source: Source): { candidates: LinkCandidate[]; warning: string | null } {
+    const path = this.options.privateFeedPath;
+    if (!path || !existsSync(path)) {
+      throw new Error('Grupo privado: pon en marcha el puente de Telethon (tools/telethon_bridge.py, ver README).');
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+      throw new Error('El archivo del puente de Telethon no es un JSON válido.');
+    }
+    const feed = parsePrivateFeed(json);
+    const messages = feed.sources[source.url];
+    if (!messages) throw new Error('El puente de Telethon aún no ha leído este grupo: revisa su URL en sources.json.');
+
+    const age = feed.updated_at === null ? Infinity : Date.now() - Date.parse(feed.updated_at);
+    return {
+      candidates: parsePrivateMessages(messages, source.link_regex),
+      warning: age > PRIVATE_FEED_MAX_AGE_MS ? 'El puente de Telethon lleva más de 1 h sin leer: ¿sigue en marcha?' : null,
+    };
   }
 
   /** Devuelve `true` si creó un deal nuevo. */

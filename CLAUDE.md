@@ -79,10 +79,19 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - Un comando solo se crea tras la lista de confirmación del dashboard (Regla 6); solo uno activo a la vez. En real, cualquier fallo o resultado desconocido lo deja en `failed` y nunca se reenvía.
 - La extensión consulta `/api/vinted/commands/next` cada minuto y ejecuta en la pestaña de vinted.es con un overlay (shadow DOM) y botón PARAR.
 
+## Mejoras (Fase 6)
+- Bajadas sugeridas (`packages/shared/src/repricing.ts`, `GET /api/repricing`): anuncio stale → −5 %; pasado el doble de `STALE_DAYS`, −10 % (salvo que el −10 % no cubra el coste y el −5 % sí). Tras una bajada (`price_drop` o `price_drop_manual` en `action_log`) no se sugiere otra durante `STALE_DAYS`. Solo sugiere: el dashboard copia el precio y abre `vinted.es/items/{id}/edit`; el usuario lo cambia allí.
+- La sync detecta las bajadas hechas a mano (`price_drop_manual`). Si llegan a `OFFER_DISCOUNT_PCT`, los favoritos pendientes de ese anuncio pasan a ofertados.
+- Generador de anuncio (`listingText.ts`): plantilla sin LLM. Solo promete plazo de envío si el item está `en_mano` o `listado` (Regla 8) y avisa de enlaces o contactos (Regla 9).
+- Informes (`reports.ts`, `apps/server/src/reports`): semana de lunes a domingo en hora local; CSV con `;`, coma decimal, BOM y fila de totales. Resumen diario por Telegram con cron `30 8 * * *` y al arrancar si ya pasó la hora; una vez por día local (`action_log`, acción `daily_summary`, target `AAAA-MM-DD`). Si Telegram falla no se marca y se reintenta.
+- Grupos privados: el server NO entra en Telegram. `tools/telethon_bridge.py` (opcional, Python, cuenta del usuario, solo lectura) escribe `data/telegram-private.json` (`{ updated_at, sources: { <url de sources.json>: [{ text }] } }`) y la ingesta lo lee. Más de 1 h sin actualizar = aviso en la fuente. `TELEGRAM_API_ID/HASH` solo los usa el puente.
+- `logAction` acepta `ts` para que el reloj inyectado de los tests mande (el contador diario de mensajes cuenta solo dentro del día local).
+
 ## Estado
 - Fase 0 (Base): hecha.
 - Fase 1 (Inventario y beneficios): hecha.
 - Fase 2 (Oportunidades Hacoo): hecha. Pendiente del usuario: enviar /start al bot para recibir avisos.
 - Fase 3 (Extensión: lectura de mi cuenta): hecha. Pendiente del usuario: cargar `apps/extension/dist` en chrome://extensions y pulsar «Activar lectura».
 - Fase 4 (Tendencias): hecha.
-- Fase 5 (Ofertas a favoritos): hecha SOLO en simulación (DRY_RUN). Pendiente: escritura real en Vinted, que requiere autorización del usuario para una prueba supervisada.
+- Fase 5 (Ofertas a favoritos): hecha SOLO en simulación (DRY_RUN). Pendiente: escritura real en Vinted, que requiere autorización del usuario para una prueba supervisada. Mientras, las bajadas se hacen a mano con «Editar en Vinted» y la sync las registra.
+- Fase 6 (Mejoras): hecha. README con el setup completo. Pendiente del usuario (opcional): `TELEGRAM_API_ID/HASH` y el puente de Telethon si quiere grupos privados.
