@@ -22,7 +22,7 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 
 ## Estructura
 - `apps/server` — Fastify + better-sqlite3. Escucha solo en 127.0.0.1:4317. Sirve el dashboard.
-- `apps/dashboard` — Vite + React + Tailwind. Oscuro, suizo, sin degradados ni glassmorphism, un solo color de acento.
+- `apps/dashboard` — Vite + React + Tailwind. Diseño «Mercadillo riso» (ver sección Diseño).
 - `apps/extension` — Chrome MV3 (@crxjs/vite-plugin), side panel.
 - `packages/shared` — constantes y tipos compartidos (ajustes por defecto, estados, navegación).
 - Migraciones SQL en `apps/server/src/db/migrations/NNN_nombre.sql` (se aplican solas al arrancar; nunca edites una ya aplicada, añade otra).
@@ -89,6 +89,13 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - Informes (`reports.ts`, `apps/server/src/reports`): semana de lunes a domingo en hora local; CSV con `;`, coma decimal, BOM y fila de totales. Resumen diario por Telegram con cron `30 8 * * *` y al arrancar si ya pasó la hora; una vez por día local (`action_log`, acción `daily_summary`, target `AAAA-MM-DD`). Si Telegram falla no se marca y se reintenta.
 - Grupos privados: el server NO entra en Telegram. `tools/telethon_bridge.py` (opcional, Python, cuenta del usuario, solo lectura) escribe `data/telegram-private.json` (`{ updated_at, sources: { <url de sources.json>: [{ text }] } }`) y la ingesta lo lee. Más de 1 h sin actualizar = aviso en la fuente. `TELEGRAM_API_ID/HASH` solo los usa el puente.
 - `logAction` acepta `ts` para que el reloj inyectado de los tests mande (el contador diario de mensajes cuenta solo dentro del día local).
+
+## Diseño (rediseño 2026-11-15, sustituye al estilo suizo oscuro del PRD a petición del usuario)
+- «Mercadillo riso»: papel crema, tinta verde bosque (`accent`) y rosa coral (`pink`), como una impresión risográfica. Tema claro por defecto, oscuro con el sistema o con el selector de la barra lateral (`theme.ts`, `localStorage`).
+- Tokens en `apps/dashboard/src/index.css` (`bg`, `surface`, `sunken`, `line`, `ink`, `muted`, `accent`, `pink`, `paper`…). Nunca colores sueltos: usa los tokens.
+- Tipografías locales (fontsource): Bricolage Grotesque (títulos y cifras), Geist (texto), Geist Mono. Iconos: lucide-react.
+- Piezas comunes en `components/kit.tsx` (PageHeader, Card, Kpi, Chips, Badge, EmptyState, TableCard, IconButton…) y clases en `ui.ts`. Las tablas deben caber sin scroll a 1300 px de ancho.
+- Ilustraciones de Google Flow (proyecto «nov 15 - 23:01»): hojas originales en `assets-src/flow`, recortadas con `python assets-src/crop_sheets.py` a `apps/dashboard/public/illustrations`. Iconos de la extensión: `python assets-src/make_icons.py`.
 
 ## Estado
 - Fase 0 (Base): hecha.

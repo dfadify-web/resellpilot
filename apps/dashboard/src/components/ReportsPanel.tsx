@@ -1,34 +1,39 @@
 import type { WeeklyReport } from '@resellpilot/shared';
+import { Download, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, describeError, weeklyCsvUrl, type DailyReportResponse, type WeeklyReportsResponse } from '../api';
 import { pct, signedEur } from '../format';
 import { ui } from '../ui';
+import { Card, CardHeader } from './kit';
 
 const dayMonth = (key: string): string => {
   const [, month, day] = key.split('-');
   return `${day}/${month}`;
 };
 
-function WeekRow({ label, report }: { label: string; report: WeeklyReport }) {
+function Week({ label, report }: { label: string; report: WeeklyReport }) {
   return (
-    <tr className="border-b border-line last:border-b-0">
-      <th scope="row" className={ui.th}>
-        {label}
-        <span className="block normal-case tracking-normal">
-          {dayMonth(report.monday)} – {dayMonth(report.sunday)}
-        </span>
-      </th>
-      <td className={`${ui.td} text-right`}>{report.sales}</td>
-      <td className={`${ui.td} text-right font-semibold ${report.profit > 0 ? 'text-accent' : ''}`}>
+    <div className="flex items-center gap-4 rounded-2xl bg-sunken px-4 py-3.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-xs text-muted">
+          {dayMonth(report.monday)} – {dayMonth(report.sunday)} · {report.sales === 1 ? '1 venta' : `${report.sales} ventas`}
+          {report.roi !== null && ` · ROI ${pct(report.roi)}`}
+        </p>
+      </div>
+      <p className={`${ui.num} text-2xl ${report.profit > 0 ? 'text-accent' : ''}`}>
         {report.sales === 0 ? '—' : signedEur(report.profit)}
-      </td>
-      <td className={`${ui.td} text-right`}>{pct(report.roi)}</td>
-      <td className={`${ui.td} text-right`}>
-        <a className={`${ui.link} text-paper`} href={weeklyCsvUrl(report.monday)} download>
-          Descargar
-        </a>
-      </td>
-    </tr>
+      </p>
+      <a
+        className="grid h-9 w-9 place-items-center rounded-full border border-line-strong bg-surface text-muted transition hover:text-ink"
+        href={weeklyCsvUrl(report.monday)}
+        download
+        aria-label={`Descargar CSV de ${label.toLowerCase()}`}
+        title="Descargar CSV para Excel"
+      >
+        <Download size={16} aria-hidden="true" />
+      </a>
+    </div>
   );
 }
 
@@ -65,51 +70,48 @@ export function ReportsPanel() {
   if (!weekly && !daily) return null;
 
   return (
-    <div className="mt-10 grid grid-cols-1 gap-10 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {weekly && (
-        <div>
-          <h2 className="font-display text-3xl font-bold uppercase">Informe semanal</h2>
-          <div className="mt-3 overflow-x-auto border border-line">
-            <table className="w-full border-collapse text-sm">
-              <thead className="border-b border-line bg-panel">
-                <tr>
-                  <th className={ui.th}>Semana</th>
-                  <th className={`${ui.th} text-right`}>Ventas</th>
-                  <th className={`${ui.th} text-right`}>Beneficio</th>
-                  <th className={`${ui.th} text-right`}>ROI</th>
-                  <th className={`${ui.th} text-right`}>CSV</th>
-                </tr>
-              </thead>
-              <tbody>
-                <WeekRow label="Esta semana" report={weekly.current} />
-                <WeekRow label="Semana pasada" report={weekly.previous} />
-              </tbody>
-            </table>
+        <Card>
+          <CardHeader
+            illustration="informe"
+            title="Informe semanal"
+            description="De lunes a domingo. El CSV se abre en Excel: una fila por venta y el total al final."
+          />
+          <div className="space-y-2.5 p-5">
+            <Week label="Esta semana" report={weekly.current} />
+            <Week label="Semana pasada" report={weekly.previous} />
           </div>
-          <p className="mt-2 text-xs text-muted">De lunes a domingo. El CSV se abre en Excel: una fila por venta y el total al final.</p>
-        </div>
+        </Card>
       )}
 
       {daily && (
-        <div>
-          <h2 className="font-display text-3xl font-bold uppercase">Resumen diario</h2>
-          <pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap border border-line bg-panel px-4 py-3 font-sans text-sm">
-            {daily.text}
-          </pre>
-          <div className="mt-3 flex flex-wrap items-center gap-4">
-            <button type="button" className={ui.secondary} disabled={sending || !daily.telegram} onClick={() => void send()}>
-              {sending ? 'Enviando…' : 'Enviar ahora a Telegram'}
-            </button>
-            <p role="status" className="text-xs text-muted">
-              {notice ??
-                (!daily.telegram
-                  ? 'Falta el token del bot en .env: sin él no hay avisos.'
-                  : daily.sent_today
-                    ? 'El de hoy ya se ha enviado. Llega solo cada día a las 08:30.'
-                    : 'Llega solo cada día a las 08:30 (o al arrancar, si el equipo estaba apagado).')}
-            </p>
+        <Card>
+          <CardHeader
+            illustration="resumen-diario"
+            title="Resumen diario"
+            description="Así te llega a Telegram cada mañana a las 08:30."
+          />
+          <div className="p-5">
+            <pre className="scroll-soft max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-sunken px-4 py-3 font-sans text-[13px] leading-relaxed">
+              {daily.text}
+            </pre>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button type="button" className={ui.secondary} disabled={sending || !daily.telegram} onClick={() => void send()}>
+                <Send size={15} aria-hidden="true" />
+                {sending ? 'Enviando…' : 'Enviar ahora'}
+              </button>
+              <p role="status" className="text-xs text-muted">
+                {notice ??
+                  (!daily.telegram
+                    ? 'Falta el token del bot en .env: sin él no hay avisos.'
+                    : daily.sent_today
+                      ? 'El de hoy ya se ha enviado.'
+                      : 'Si el equipo estaba apagado a las 08:30, llega al arrancar.')}
+              </p>
+            </div>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -1,9 +1,42 @@
+/* ResellPilot · «Mercadillo riso»: papel crema, tinta verde y rosa. Claro u oscuro según el sistema. */
 :root {
-  --ink: #0a0a0b;
-  --line: #27272b;
-  --muted: #85858f;
-  --paper: #ecece7;
-  --accent: #ff4b1f;
+  --bg: #f4efe6;
+  --surface: #fbf8f2;
+  --sunken: #eee7da;
+  --line: #e3dacb;
+  --line-strong: #cdc1ab;
+  --ink: #1d2420;
+  --muted: #6b675d;
+  --accent: #1f5c46;
+  --accent-hover: #174836;
+  --accent-soft: #dde9e0;
+  --on-accent: #f8f4eb;
+  --pink: #e5566f;
+  --pink-text: #c13b54;
+  --pink-soft: #f8dee2;
+  --paper: #f1ebdf;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121513;
+    --surface: #1a1e1b;
+    --sunken: #151916;
+    --line: #2a302b;
+    --line-strong: #3b433c;
+    --ink: #ece7db;
+    --muted: #a39e92;
+    --accent: #7cc7a2;
+    --accent-hover: #98d8b8;
+    --accent-soft: #1d3a2d;
+    --on-accent: #0e1a13;
+    --pink: #f28da0;
+    --pink-text: #f28da0;
+    --pink-soft: #3b2229;
+    --paper: #ece4d4;
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -12,124 +45,167 @@
 }
 
 body {
-  background: var(--ink);
-  color: var(--paper);
-  font-family: 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }
 
 header {
-  padding: 20px;
-  border-bottom: 1px solid var(--line);
+  padding: 20px 18px 6px;
 }
 
 .brand {
-  font-family: 'Arial Narrow', 'Helvetica Neue', sans-serif;
-  font-stretch: condensed;
-  font-size: 28px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: 21px;
   font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1;
-  text-transform: uppercase;
 }
 
-.brand span {
+.word span {
   color: var(--accent);
 }
 
-.sub,
-dt,
-.note {
+.sub {
+  margin-top: 6px;
   color: var(--muted);
-}
-
-.sub,
-dt {
-  margin-top: 8px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-size: 12px;
 }
 
 main {
-  padding: 20px;
+  display: grid;
+  gap: 14px;
+  padding: 14px 18px 24px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 10px 28px -20px rgb(0 0 0 / 0.35);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+}
+
+.art {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  padding: 6px;
+  border-radius: 22px;
+  background: var(--paper);
+  transform: rotate(-3deg);
 }
 
 .state {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
 }
 
 .state i {
-  width: 8px;
-  height: 8px;
-  background: var(--muted);
-}
-
-dl {
-  margin: 16px 0;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-dt {
-  margin-top: 0;
-}
-
-dd {
-  margin-top: 4px;
-  font-variant-numeric: tabular-nums;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--line-strong);
 }
 
 .state[data-tone='on'] i {
   background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .state[data-tone='warn'] {
-  color: var(--accent);
+  color: var(--pink-text);
 }
 
-.muted {
+.state[data-tone='warn'] i {
+  background: var(--pink);
+  box-shadow: 0 0 0 4px var(--pink-soft);
+}
+
+dl {
+  margin-top: 8px;
+}
+
+dt {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+dd {
+  margin-top: 1px;
+  font-weight: 600;
+}
+
+dd.muted {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .note {
-  margin-bottom: 16px;
   padding: 10px 12px;
-  border: 1px solid var(--accent);
-  color: var(--paper);
-  line-height: 1.4;
+  border: 1px solid color-mix(in srgb, var(--pink) 35%, transparent);
+  border-radius: 14px;
+  background: var(--pink-soft);
+  color: var(--ink);
+}
+
+.note[hidden] {
+  display: none;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
 }
 
 button,
-.secondary {
-  display: block;
+a.secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  height: 40px;
+  border-radius: 999px;
   font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
+  transition:
+    background-color 150ms,
+    transform 150ms;
 }
 
-.primary,
-.secondary {
-  padding: 10px 12px;
-  font-family: 'Arial Narrow', 'Helvetica Neue', sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
+button:active,
+a.secondary:active {
+  transform: scale(0.98);
 }
 
 .primary {
   border: 0;
   background: var(--accent);
-  color: var(--ink);
+  color: var(--on-accent);
+}
+
+.primary:hover {
+  background: var(--accent-hover);
 }
 
 .primary:disabled {
@@ -137,48 +213,69 @@ button,
   cursor: default;
 }
 
-.secondary {
-  margin-top: 8px;
-  border: 1px solid var(--line);
-  color: var(--paper);
+a.secondary {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+a.secondary:hover {
+  background: var(--sunken);
 }
 
 .link {
-  margin-top: 12px;
+  height: 32px;
   border: 0;
   background: none;
   color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.link:hover {
+  color: var(--pink-text);
+}
+
+.link[hidden] {
+  display: none;
+}
+
+.about {
+  padding: 14px 16px 16px;
+}
+
+.about h2 {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.about ul {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+  padding-left: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.about li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.about li::before {
+  content: '';
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-.about {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.about h2 {
-  margin-bottom: 8px;
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.about ul {
-  padding-left: 16px;
-}
-
-.about li + li {
-  margin-top: 6px;
 }

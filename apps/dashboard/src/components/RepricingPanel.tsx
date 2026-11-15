@@ -1,12 +1,14 @@
 import type { RepricingRow } from '@resellpilot/shared';
+import { Check, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { eur, signedEur, vintedEditUrl } from '../format';
 import { ui } from '../ui';
+import { Badge, Card, CardHeader } from './kit';
 
 const priceText = (price: number): string => price.toFixed(2).replace('.', ',');
 
 /**
- * Bajadas de precio sugeridas para los anuncios stale. ResellPilot no cambia el precio:
+ * Bajadas de precio sugeridas para los anuncios estancados. ResellPilot no cambia el precio:
  * copia el nuevo y abre la edición del anuncio en Vinted; la siguiente sync registra la bajada.
  */
 export function RepricingPanel({ rows }: { rows: RepricingRow[] }) {
@@ -19,66 +21,62 @@ export function RepricingPanel({ rows }: { rows: RepricingRow[] }) {
       setCopied(row.listing_id);
       setTimeout(() => setCopied((current) => (current === row.listing_id ? null : current)), 4000);
     } catch {
-      // Sin portapapeles: el precio sugerido sigue a la vista en la tabla.
+      // Sin portapapeles: el precio sugerido sigue a la vista.
     }
     window.open(vintedEditUrl(row.vinted_id), '_blank', 'noopener,noreferrer');
   }
 
   return (
-    <div className="mt-10">
-      <h2 className="font-display text-3xl font-bold uppercase">Bajadas de precio sugeridas</h2>
-      <p className="mt-1 max-w-prose text-xs text-muted">
-        Anuncios que llevan en venta más de <code>STALE_DAYS</code> días: −5 % al principio y −10 % a partir del doble
-        de ese plazo. «Editar en Vinted» copia el precio nuevo y abre el anuncio: lo cambias tú y la siguiente sync lo
-        registra. Tras una bajada, el anuncio no vuelve a aparecer aquí hasta que pase otra vez ese plazo.
-      </p>
-      <div className="mt-3 overflow-x-auto border border-line">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
-          <thead className="border-b border-line bg-panel">
-            <tr>
-              <th className={`${ui.th} min-w-[240px]`}>Anuncio</th>
-              <th className={`${ui.th} text-right`}>Días</th>
-              <th className={`${ui.th} text-right`}>Favs</th>
-              <th className={`${ui.th} text-right`}>Precio</th>
-              <th className={`${ui.th} text-right`}>−5 %</th>
-              <th className={`${ui.th} text-right`}>−10 %</th>
-              <th className={`${ui.th} text-right`}>Sugerido</th>
-              <th className={`${ui.th} text-right`}>Margen</th>
-              <th className={`${ui.th} text-right`}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.listing_id} className="border-b border-line last:border-b-0 hover:bg-panel">
-                <td className={ui.td}>
-                  <span className="font-semibold">{row.title}</span>
-                  {row.item_name && <span className="block text-xs text-muted">{row.item_name}</span>}
-                </td>
-                <td className={`${ui.td} text-right`}>{row.days_listed}</td>
-                <td className={`${ui.td} text-right`}>{row.favs}</td>
-                <td className={`${ui.td} text-right`}>{eur(row.price)}</td>
-                <td className={`${ui.td} text-right text-muted`}>{eur(row.price_minus_5)}</td>
-                <td className={`${ui.td} text-right text-muted`}>{eur(row.price_minus_10)}</td>
-                <td className={`${ui.td} whitespace-nowrap text-right font-semibold`}>
-                  {eur(row.new_price)} <span className="text-xs font-normal text-muted">−{row.pct} %</span>
-                </td>
-                <td
-                  className={`${ui.td} whitespace-nowrap text-right ${row.below_cost ? 'font-semibold text-accent' : ''}`}
-                  title={row.total_cost === null ? 'Enlaza el anuncio con su item para ver el margen' : `Coste total ${eur(row.total_cost)}`}
-                >
-                  {row.margin === null ? '—' : signedEur(row.margin)}
-                  {row.below_cost && <span className="block text-[10px] uppercase tracking-[0.12em]">Bajo coste</span>}
-                </td>
-                <td className={`${ui.td} whitespace-nowrap text-right`}>
-                  <button type="button" className={`${ui.link} text-paper`} onClick={() => void open(row)}>
-                    {copied === row.listing_id ? `Copiado ${priceText(row.new_price)}` : 'Editar en Vinted ↗'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <Card as="section">
+      <CardHeader
+        illustration="bajada-precio"
+        title="Bajadas de precio sugeridas"
+        description={
+          <>
+            −5 % al pasar <code>STALE_DAYS</code> días y −10 % al doble. «Editar en Vinted» copia el precio nuevo y abre
+            el anuncio: lo cambias tú y la sync lo registra. Tras una bajada, el anuncio descansa otro plazo.
+          </>
+        }
+      />
+      <ul className="mt-4 grid grid-cols-1 gap-3 p-5 pt-0 lg:grid-cols-2">
+        {rows.map((row) => (
+          <li key={row.listing_id} className="flex flex-col gap-3 rounded-2xl border border-line bg-bg/60 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{row.title}</p>
+                <p className="text-xs text-muted">
+                  {row.days_listed} días publicado · {row.favs} favoritos{row.item_name ? ` · ${row.item_name}` : ''}
+                </p>
+              </div>
+              <Badge tone={row.pct === 10 ? 'pinkSolid' : 'pink'}>−{row.pct} %</Badge>
+            </div>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <p className="flex items-baseline gap-2">
+                <span className="text-sm text-faint line-through">{eur(row.price)}</span>
+                <span className={`${ui.num} text-[28px] leading-none`}>{eur(row.new_price)}</span>
+              </p>
+              <p
+                className={`text-xs ${row.below_cost ? 'font-semibold text-pink' : 'text-muted'}`}
+                title={row.total_cost === null ? 'Enlaza el anuncio con su item para ver el margen' : `Coste total ${eur(row.total_cost)}`}
+              >
+                {row.margin === null ? 'Sin item enlazado' : `Te quedan ${signedEur(row.margin)}`}
+                {row.below_cost && ' · por debajo del coste'}
+              </p>
+            </div>
+            <button type="button" className={`${ui.secondary} h-9 self-start`} onClick={() => void open(row)}>
+              {copied === row.listing_id ? (
+                <>
+                  <Check size={15} aria-hidden="true" /> Copiado {priceText(row.new_price)} €
+                </>
+              ) : (
+                <>
+                  <ExternalLink size={15} aria-hidden="true" /> Editar en Vinted
+                </>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

@@ -51,7 +51,7 @@ export function ListingTextDialog({ item, onClose }: Props) {
   }
 
   return (
-    <Modal title="Texto del anuncio" onClose={onClose}>
+    <Modal title="Texto del anuncio" onClose={onClose} illustration="texto-anuncio" size="lg">
       <div className="space-y-4 text-sm">
         <p>
           {item.name}
@@ -65,7 +65,7 @@ export function ListingTextDialog({ item, onClose }: Props) {
             </label>
             <select
               id="text-condition"
-              className={ui.input}
+              className={ui.select}
               value={condition}
               onChange={(event) => setCondition(event.target.value as ItemCondition)}
             >
@@ -96,7 +96,7 @@ export function ListingTextDialog({ item, onClose }: Props) {
           </label>
           <textarea
             id="text-notes"
-            className={`${ui.input} h-20`}
+            className={`${ui.textarea} h-20`}
             maxLength={600}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
@@ -104,29 +104,29 @@ export function ListingTextDialog({ item, onClose }: Props) {
         </div>
 
         {text.warnings.map((warning) => (
-          <p key={warning} role="alert" className="border border-accent px-3 py-2 text-accent">
+          <p key={warning} role="alert" className="rounded-2xl border border-pink/30 bg-pink-soft px-4 py-2.5 font-medium text-pink">
             {warning}
           </p>
         ))}
 
-        <div className="border border-line">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
-            <p className={ui.eyebrow}>Título · {text.title.length} caracteres</p>
-            <button type="button" className={`${ui.link} text-paper`} onClick={() => void copy('title')}>
-              {copied === 'title' ? 'Copiado' : 'Copiar'}
+        <div className="overflow-hidden rounded-2xl border border-line bg-bg/60">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+            <p className="text-xs font-medium text-muted">Título · {text.title.length} caracteres</p>
+            <button type="button" className={ui.link} onClick={() => void copy('title')}>
+              {copied === 'title' ? '¡Copiado!' : 'Copiar'}
             </button>
           </div>
-          <p className="px-3 py-2 font-semibold">{text.title}</p>
+          <p className="px-4 py-3 font-display text-lg font-semibold">{text.title}</p>
         </div>
 
-        <div className="border border-line">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-3 py-2">
-            <p className={ui.eyebrow}>Descripción y hashtags</p>
-            <button type="button" className={`${ui.link} text-paper`} onClick={() => void copy('description')}>
-              {copied === 'description' ? 'Copiado' : 'Copiar'}
+        <div className="overflow-hidden rounded-2xl border border-line bg-bg/60">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+            <p className="text-xs font-medium text-muted">Descripción y hashtags</p>
+            <button type="button" className={ui.link} onClick={() => void copy('description')}>
+              {copied === 'description' ? '¡Copiado!' : 'Copiar'}
             </button>
           </div>
-          <p className="max-h-56 overflow-y-auto whitespace-pre-wrap px-3 py-2">{text.description}</p>
+          <p className="scroll-soft max-h-56 overflow-y-auto whitespace-pre-wrap px-4 py-3 leading-relaxed">{text.description}</p>
         </div>
 
         <p className="text-xs text-muted">

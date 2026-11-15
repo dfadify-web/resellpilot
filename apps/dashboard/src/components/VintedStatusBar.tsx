@@ -1,4 +1,6 @@
 import type { VintedStatus } from '@resellpilot/shared';
+import { PauseCircle, RefreshCw } from 'lucide-react';
+import { Card, Illustration } from './kit';
 
 /** Estado de la conexión con la extensión: última sync, pausa o primeros pasos. */
 export function VintedStatusBar({ status }: { status: VintedStatus | null }) {
@@ -6,39 +8,60 @@ export function VintedStatusBar({ status }: { status: VintedStatus | null }) {
 
   if (status.paused) {
     return (
-      <div role="alert" className="border border-accent px-3 py-2 text-sm">
-        <p className="font-semibold text-accent">Lectura de Vinted en pausa</p>
-        <p className="mt-1">
-          {status.notice ?? 'La extensión se ha detenido.'} Revisa vinted.es y pulsa «Reanudar» en el panel de la
-          extensión. No se reintenta sola.
-        </p>
+      <div role="alert" className="flex gap-3 rounded-2xl border border-pink/30 bg-pink-soft px-4 py-3 text-sm">
+        <PauseCircle size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-pink" />
+        <div>
+          <p className="font-semibold text-pink">Lectura de Vinted en pausa</p>
+          <p className="mt-0.5 text-ink">
+            {status.notice ?? 'La extensión se ha detenido.'} Revisa vinted.es y pulsa «Reanudar» en el panel de la
+            extensión. No se reintenta sola.
+          </p>
+        </div>
       </div>
     );
   }
 
   if (!status.last_sync_at) {
     return (
-      <div className="border border-line px-3 py-3 text-sm">
-        <p className="font-semibold">Aún no se ha sincronizado tu cuenta de Vinted</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted">
-          <li>
-            Ejecuta <code>pnpm --filter @resellpilot/extension build</code> y carga la carpeta{' '}
-            <code>apps/extension/dist</code> en <code>chrome://extensions</code> («Cargar descomprimida», con el modo
-            de desarrollador activado).
-          </li>
-          <li>Abre vinted.es con tu sesión iniciada.</li>
-          <li>Pulsa el icono de ResellPilot y, en el panel lateral, «Activar lectura».</li>
-        </ol>
-      </div>
+      <Card className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
+        <Illustration name="extension" size={84} className="-rotate-2" />
+        <div className="min-w-0">
+          <p className="font-display text-lg font-semibold">Conecta tu cuenta de Vinted</p>
+          <ol className="mt-2 space-y-1.5 text-[13px] leading-relaxed text-muted">
+            {[
+              <>
+                En <code>chrome://extensions</code>, activa el modo de desarrollador y pulsa «Cargar descomprimida» con
+                la carpeta <code>apps/extension/dist</code>.
+              </>,
+              <>Abre vinted.es con tu sesión iniciada.</>,
+              <>Pulsa el icono de ResellPilot y, en el panel lateral, «Activar lectura».</>,
+            ].map((step, index) => (
+              <li key={index} className="flex gap-2.5">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent-soft text-[11px] font-bold text-accent">
+                  {index + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </Card>
     );
   }
 
   const minutes = Math.max(0, Math.round((Date.now() - Date.parse(status.last_sync_at)) / 60_000));
   const ago = minutes < 1 ? 'hace un momento' : minutes < 60 ? `hace ${minutes} min` : `hace ${Math.round(minutes / 60)} h`;
+  const late = minutes > 45;
   return (
-    <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-      Última sync {ago} · {new Date(status.last_sync_at).toLocaleString('es-ES')}
-      {minutes > 45 && <span className="ml-2 text-paper">· Abre vinted.es para que siga sincronizando</span>}
+    <p
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${
+        late ? 'border-pink/30 bg-pink-soft text-pink' : 'border-line bg-surface text-muted'
+      }`}
+      title={new Date(status.last_sync_at).toLocaleString('es-ES')}
+    >
+      <RefreshCw size={13} aria-hidden="true" />
+      Sincronizado {ago}
+      {late && <span className="font-semibold">· abre vinted.es para que siga</span>}
     </p>
   );
 }

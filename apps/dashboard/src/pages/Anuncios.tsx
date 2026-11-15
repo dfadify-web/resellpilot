@@ -1,15 +1,17 @@
 import {
   LISTING_STATUS_LABELS,
+  type CommandType,
   type ItemWithCalc,
   type ListingView,
-  type CommandType,
   type OfferPlanRow,
   type RepricingRow,
   type VintedStatus,
 } from '@resellpilot/shared';
+import { ArrowDownRight, ExternalLink, Heart, MessageCircleHeart } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { Badge, Chips, EmptyState, Page, PageHeader, StatStrip, TableCard, type BadgeTone } from '../components/kit';
 import { CommandBox, OffersDialog, useOffers } from '../components/OffersPanel';
 import { RepricingPanel } from '../components/RepricingPanel';
 import { VintedStatusBar } from '../components/VintedStatusBar';
@@ -20,9 +22,15 @@ type Filter = 'en_venta' | 'stale' | 'vendidos' | 'todos';
 
 const FILTERS: Record<Filter, { label: string; test: (listing: ListingView) => boolean }> = {
   en_venta: { label: 'En venta', test: (l) => l.status === 'activo' || l.status === 'reservado' },
-  stale: { label: 'Stale', test: (l) => l.stale },
+  stale: { label: 'Estancados', test: (l) => l.stale },
   vendidos: { label: 'Vendidos', test: (l) => l.status === 'vendido' },
   todos: { label: 'Todos', test: () => true },
+};
+
+const STATUS_TONES: Record<string, BadgeTone> = {
+  activo: 'accent',
+  reservado: 'outline',
+  vendido: 'accentSolid',
 };
 
 const REFRESH_MS = 30_000;
@@ -86,176 +94,180 @@ export function Anuncios() {
   const offerable = (offers.plan?.rows ?? []).filter((row) => row.blocker === null && row.pending > 0).length;
   const commandActive = offers.plan?.active_command_id != null;
   const discount = offers.plan?.discount_pct ?? 10;
-
-  const kpis: [string, string][] = [
-    ['En venta', String(onSale.length)],
-    ['Valor publicado', eur(totalValue)],
-    ['Favoritos', String(onSale.reduce((sum, listing) => sum + listing.favs, 0))],
-    ['Stale', String(all.filter((listing) => listing.stale).length)],
-  ];
+  const offersDisabled = !offers.plan || commandActive || offerable === 0;
 
   return (
-    <section className="px-6 py-8 md:px-12 md:py-12">
-      <p className={ui.eyebrow}>02 / 07</p>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className={ui.h1}>Anuncios</h1>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            className={ui.secondary}
-            disabled={!offers.plan || commandActive || offerable === 0}
-            onClick={() => setDialog({ type: 'send_offers', listingId: null })}
-          >
-            Enviar oferta −{discount} %
-          </button>
-          <button
-            type="button"
-            className={ui.primary}
-            disabled={!offers.plan || commandActive || offerable === 0}
-            onClick={() => setDialog({ type: 'price_drop', listingId: null })}
-          >
-            Bajar precio −{discount} %
-          </button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow="Tu armario en Vinted"
+        title="Anuncios"
+        description="Favoritos, vistas y días publicados de cada anuncio. Enlázalos con su item para saber qué tienes en casa y cuánto ganas."
+        illustration="anuncios"
+        actions={
+          <>
+            <button
+              type="button"
+              className={ui.primary}
+              disabled={offersDisabled}
+              onClick={() => setDialog({ type: 'price_drop', listingId: null })}
+            >
+              <ArrowDownRight size={16} aria-hidden="true" />
+              Bajar precio −{discount} %
+            </button>
+            <button
+              type="button"
+              className={ui.secondary}
+              disabled={offersDisabled}
+              onClick={() => setDialog({ type: 'send_offers', listingId: null })}
+            >
+              <MessageCircleHeart size={16} aria-hidden="true" />
+              Oferta a favoritos
+            </button>
+            <VintedStatusBar status={status?.last_sync_at && !status.paused ? status : null} />
+          </>
+        }
+      />
 
-      <div className="mt-8 space-y-3">
-        <VintedStatusBar status={status} />
-        <ErrorNote problem={problem} />
-        {offers.command && (
-          <CommandBox
-            command={offers.command}
-            onCancel={() => {
-              const id = offers.command?.id;
-              if (id !== undefined) void api.cancelCommand(id).then(() => offers.reload());
-            }}
-          />
-        )}
-        {offers.plan && all.length > 0 && offerable === 0 && !commandActive && (
-          <p className="text-xs text-muted">
-            Ofertas a favoritos: ahora mismo ningún anuncio las admite. Hace falta que esté activo, enlazado a un item
-            en estado «en mano» y con favoritos a los que aún no se haya ofertado.
-          </p>
-        )}
-      </div>
-
-      {all.length > 0 && (
-        <dl className="mt-4 grid grid-cols-2 border border-line xl:grid-cols-4">
-          {kpis.map(([label, value]) => (
-            <div key={label} className="border-b border-r border-line px-5 py-4 xl:border-b-0 xl:last:border-r-0">
-              <dt className={ui.eyebrow}>{label}</dt>
-              <dd className="mt-1 font-display text-5xl font-bold leading-none">{value}</dd>
-            </div>
-          ))}
-        </dl>
+      {status && (status.paused || !status.last_sync_at) && <VintedStatusBar status={status} />}
+      <ErrorNote problem={problem} />
+      {offers.command && (
+        <CommandBox
+          command={offers.command}
+          onCancel={() => {
+            const id = offers.command?.id;
+            if (id !== undefined) void api.cancelCommand(id).then(() => offers.reload());
+          }}
+        />
       )}
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {(Object.keys(FILTERS) as Filter[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={filter === key}
-            onClick={() => setFilter(key)}
-            className={`border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${
-              filter === key ? 'border-accent text-paper' : 'border-line text-muted hover:text-paper'
-            }`}
-          >
-            {FILTERS[key].label} <span className="ml-1 text-paper">{all.filter(FILTERS[key].test).length}</span>
-          </button>
-        ))}
-      </div>
+      {all.length > 0 && (
+        <StatStrip
+          items={[
+            ['En venta', String(onSale.length)],
+            ['Valor publicado', eur(totalValue)],
+            ['Favoritos', String(onSale.reduce((sum, listing) => sum + listing.favs, 0))],
+            ['Estancados', String(all.filter((listing) => listing.stale).length)],
+          ]}
+        />
+      )}
 
-      <div className="mt-4 overflow-x-auto border border-line">
-        <table className="w-full min-w-[1020px] border-collapse text-sm">
-          <thead className="border-b border-line bg-panel">
-            <tr>
-              <th className={`${ui.th} min-w-[260px]`}>Anuncio</th>
-              <th className={`${ui.th} text-right`}>Precio</th>
-              <th className={`${ui.th} text-right`}>Favs</th>
-              <th className={`${ui.th} text-right`}>Sin ofertar</th>
-              <th className={`${ui.th} text-right`}>Vistas</th>
-              <th className={`${ui.th} text-right`}>Días</th>
-              <th className={ui.th}>Publicado</th>
-              <th className={ui.th}>Estado</th>
-              <th className={ui.th}>Item de inventario</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((listing) => (
-              <tr key={listing.id} className="border-b border-line last:border-b-0 hover:bg-panel">
-                <td className={ui.td}>
-                  <a
-                    href={`https://www.vinted.es/items/${listing.vinted_id}`}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="font-semibold hover:text-accent"
-                  >
-                    {listing.title} <span aria-hidden="true">↗</span>
-                  </a>
-                </td>
-                <td className={`${ui.td} text-right`}>{eur(listing.price)}</td>
-                <td className={`${ui.td} text-right`}>{listing.favs}</td>
-                <td className={`${ui.td} whitespace-nowrap text-right`}>
-                  <OfferCell
-                    row={planByListing.get(listing.id)}
-                    discount={discount}
-                    disabled={commandActive}
-                    onOffer={() => setDialog({ type: 'send_offers', listingId: listing.id })}
-                  />
-                </td>
-                <td className={`${ui.td} text-right`}>{listing.views}</td>
-                <td className={`${ui.td} text-right ${listing.stale ? 'font-semibold text-accent' : ''}`}>
-                  {listing.days_listed ?? '—'}
-                </td>
-                <td className={`${ui.td} text-muted`}>{shortDate(listing.listed_at)}</td>
-                <td className={ui.td}>
-                  <span className="text-xs uppercase tracking-wide">{LISTING_STATUS_LABELS[listing.status] ?? listing.status}</span>
-                  {listing.stale && (
-                    <span className="ml-2 bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-ink">
-                      Stale
-                    </span>
-                  )}
-                </td>
-                <td className={ui.td}>
-                  <select
-                    aria-label={`Item de inventario enlazado a ${listing.title}`}
-                    className="w-full max-w-[220px] border border-line bg-ink px-2 py-1 text-xs text-paper focus:border-accent focus:outline-none"
-                    value={listing.item_id ?? ''}
-                    disabled={busy}
-                    onChange={(event) => void link(listing, event.target.value)}
-                  >
-                    <option value="">Sin enlazar</option>
-                    {items
-                      .filter((item) => item.id === listing.item_id || !linkedItems.has(item.id))
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                  </select>
-                </td>
-              </tr>
-            ))}
-            {visible.length === 0 && (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Chips
+            label="Filtrar anuncios"
+            value={filter}
+            onChange={setFilter}
+            options={(Object.keys(FILTERS) as Filter[]).map((key) => ({
+              value: key,
+              label: FILTERS[key].label,
+              count: all.filter(FILTERS[key].test).length,
+            }))}
+          />
+          {offers.plan && all.length > 0 && offerable === 0 && !commandActive && (
+            <p className="text-xs text-muted">
+              Para ofertar, el anuncio debe estar activo, enlazado a un item «en mano» y tener favoritos sin ofertar.
+            </p>
+          )}
+        </div>
+
+        {all.length === 0 ? (
+          <div className={ui.card}>
+            <EmptyState illustration="vacio-anuncios" title={listings === null ? 'Cargando…' : 'Aún no hay anuncios'}>
+              {listings !== null && 'Aparecerán aquí tras la primera sincronización de la extensión.'}
+            </EmptyState>
+          </div>
+        ) : (
+          <TableCard minWidth={920}>
+            <thead>
               <tr>
-                <td className="px-3 py-10 text-center text-muted" colSpan={9}>
-                  {listings === null
-                    ? 'Cargando…'
-                    : all.length === 0
-                      ? 'Aún no hay anuncios. Aparecerán tras la primera sync de la extensión.'
-                      : 'Ningún anuncio en este filtro.'}
-                </td>
+                <th className={`${ui.th} min-w-[240px]`}>Anuncio</th>
+                <th className={`${ui.th} text-right`}>Precio</th>
+                <th className={`${ui.th} text-right`}>Favs</th>
+                <th className={`${ui.th} text-right`}>Sin ofertar</th>
+                <th className={`${ui.th} text-right`}>Vistas</th>
+                <th className={`${ui.th} text-right`}>Días</th>
+                <th className={ui.th}>Estado</th>
+                <th className={ui.th}>Item de inventario</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visible.map((listing) => (
+                <tr key={listing.id} className={ui.tr}>
+                  <td className={ui.td}>
+                    <a
+                      href={`https://www.vinted.es/items/${listing.vinted_id}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="group inline-flex items-center gap-1.5 font-semibold hover:text-accent"
+                    >
+                      {listing.title}
+                      <ExternalLink size={13} aria-hidden="true" className="text-faint group-hover:text-accent" />
+                    </a>
+                    <span className="block text-xs text-muted">Publicado {shortDate(listing.listed_at)}</span>
+                  </td>
+                  <td className={`${ui.td} text-right font-semibold`}>{eur(listing.price)}</td>
+                  <td className={`${ui.td} text-right`}>
+                    <span className="inline-flex items-center gap-1">
+                      <Heart size={13} aria-hidden="true" className={listing.favs > 0 ? 'fill-pink-ink text-pink-ink' : 'text-faint'} />
+                      {listing.favs}
+                    </span>
+                  </td>
+                  <td className={`${ui.td} whitespace-nowrap text-right`}>
+                    <OfferCell
+                      row={planByListing.get(listing.id)}
+                      discount={discount}
+                      disabled={commandActive}
+                      onOffer={() => setDialog({ type: 'send_offers', listingId: listing.id })}
+                    />
+                  </td>
+                  <td className={`${ui.td} text-right text-muted`}>{listing.views}</td>
+                  <td className={`${ui.td} text-right ${listing.stale ? 'font-semibold text-pink' : ''}`}>
+                    {listing.days_listed ?? '—'}
+                  </td>
+                  <td className={ui.td}>
+                    <span className="flex flex-wrap gap-1">
+                      <Badge tone={STATUS_TONES[listing.status] ?? 'neutral'}>
+                        {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
+                      </Badge>
+                      {listing.stale && <Badge tone="pink">Estancado</Badge>}
+                    </span>
+                  </td>
+                  <td className={ui.td}>
+                    <select
+                      aria-label={`Item de inventario enlazado a ${listing.title}`}
+                      className={`${ui.selectSm} w-full max-w-[170px]`}
+                      value={listing.item_id ?? ''}
+                      disabled={busy}
+                      onChange={(event) => void link(listing, event.target.value)}
+                    >
+                      <option value="">Sin enlazar</option>
+                      {items
+                        .filter((item) => item.id === listing.item_id || !linkedItems.has(item.id))
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-muted">
+                    Ningún anuncio en este filtro.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </TableCard>
+        )}
+        <p className="max-w-[80ch] text-xs leading-relaxed text-muted">
+          Estancado = en venta más días que <code>STALE_DAYS</code>. La fecha de publicación es la de subida de la
+          primera foto.
+        </p>
       </div>
 
-      <p className="mt-3 max-w-prose text-xs text-muted">
-        Stale = en venta y con más días publicados que <code>STALE_DAYS</code>. La fecha de publicación es la de
-        subida de la primera foto. Enlazar un anuncio con su item permite saber qué stock tienes en mano.
-      </p>
       <RepricingPanel rows={repricing} />
 
       {dialog && offers.plan && (
@@ -270,7 +282,7 @@ export function Anuncios() {
           }}
         />
       )}
-    </section>
+    </Page>
   );
 }
 
@@ -283,7 +295,7 @@ interface OfferCellProps {
 
 /** Favoritos a los que aún no se ha ofertado, con el botón de oferta del anuncio. */
 function OfferCell({ row, discount, disabled, onOffer }: OfferCellProps) {
-  if (!row || row.pending === 0) return <span className="text-muted">—</span>;
+  if (!row || row.pending === 0) return <span className="text-faint">—</span>;
   if (row.blocker !== null) {
     return (
       <span className="text-muted" title={`No se puede ofertar: ${row.blocker}`}>
@@ -292,8 +304,14 @@ function OfferCell({ row, discount, disabled, onOffer }: OfferCellProps) {
     );
   }
   return (
-    <button type="button" className={`${ui.link} text-paper`} disabled={disabled} onClick={onOffer}>
-      {row.pending} · Oferta −{discount} %
+    <button
+      type="button"
+      className={ui.link}
+      disabled={disabled}
+      onClick={onOffer}
+      title={`Oferta del −${discount} % a ${row.pending} ${row.pending === 1 ? 'favorito' : 'favoritos'}`}
+    >
+      Ofertar a {row.pending}
     </button>
   );
 }

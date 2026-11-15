@@ -45,7 +45,7 @@ export function SellDialog({ item, onClose, onSaved }: Props) {
   }
 
   return (
-    <Modal title="Marcar vendido" onClose={onClose}>
+    <Modal title="Marcar vendido" onClose={onClose} illustration="dinero">
       <form onSubmit={submit} className="space-y-4">
         <p className="text-sm">
           {item.name}
@@ -84,16 +84,14 @@ export function SellDialog({ item, onClose, onSaved }: Props) {
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 border border-line">
-          <div className="border-r border-line px-3 py-2">
-            <dt className={ui.label}>Beneficio</dt>
-            <dd className={`font-display text-3xl font-bold ${profit !== null && profit > 0 ? 'text-accent' : ''}`}>
-              {signedEur(profit)}
-            </dd>
+        <dl className="grid grid-cols-2 gap-3">
+          <div className={`rounded-2xl px-4 py-3 ${profit !== null && profit > 0 ? 'bg-accent text-on-accent' : 'bg-sunken'}`}>
+            <dt className="text-xs font-medium opacity-75">Beneficio</dt>
+            <dd className={`${ui.num} mt-1 text-[32px] leading-none`}>{signedEur(profit)}</dd>
           </div>
-          <div className="px-3 py-2">
-            <dt className={ui.label}>ROI</dt>
-            <dd className="font-display text-3xl font-bold">{pct(roi)}</dd>
+          <div className="rounded-2xl bg-sunken px-4 py-3">
+            <dt className="text-xs font-medium text-muted">ROI</dt>
+            <dd className={`${ui.num} mt-1 text-[32px] leading-none`}>{pct(roi)}</dd>
           </div>
         </dl>
 

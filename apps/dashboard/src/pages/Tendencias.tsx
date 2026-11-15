@@ -1,19 +1,15 @@
 import type { TrendOrigin, TrendView } from '@resellpilot/shared';
+import { ArrowDownRight, ArrowUpRight, ExternalLink, Search } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, describeError, type TrendsResponse } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { Badge, Card, EmptyState, IconButton, Notice, Page, PageHeader, TableCard } from '../components/kit';
 import { eur, num } from '../format';
 import { ui, usePageTitle } from '../ui';
 
-const ORIGIN_LABELS: Record<TrendOrigin, string> = { semilla: 'Semilla', item: 'Item', deal: 'Deal' };
+const ORIGIN_LABELS: Record<TrendOrigin, string> = { semilla: 'Semilla', item: 'Item', deal: 'Oportunidad' };
 const REFRESH_MS = 30_000;
-
-const signedPct = (ratio: number | null): string => {
-  if (ratio === null) return '—';
-  const value = Math.round(ratio * 100);
-  return `${value > 0 ? '+' : ''}${value} %`;
-};
 
 const ago = (iso: string | null): string => {
   if (!iso) return 'Pendiente';
@@ -22,6 +18,20 @@ const ago = (iso: string | null): string => {
   const hours = Math.round(minutes / 60);
   return hours < 48 ? `hace ${hours} h` : `hace ${Math.round(hours / 24)} d`;
 };
+
+function Change({ ratio }: { ratio: number | null }) {
+  if (ratio === null) return <span className="text-faint">—</span>;
+  const value = Math.round(ratio * 100);
+  const up = value > 0;
+  const Icon = up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-semibold ${up ? 'text-accent' : value < 0 ? 'text-pink' : 'text-muted'}`}>
+      {value !== 0 && <Icon size={14} aria-hidden="true" />}
+      {up ? '+' : ''}
+      {value} %
+    </span>
+  );
+}
 
 export function Tendencias() {
   usePageTitle('Tendencias');
@@ -62,126 +72,129 @@ export function Tendencias() {
 
   const trends = data?.trends ?? [];
   const measured = trends.filter((trend) => trend.computed_at !== null);
+  const maxDemand = Math.max(0.0001, ...measured.map((trend) => trend.favs_per_day ?? 0));
 
   return (
-    <section className="px-6 py-8 md:px-12 md:py-12">
-      <p className={ui.eyebrow}>05 / 07</p>
-      <h1 className={ui.h1}>Tendencias</h1>
+    <Page>
+      <PageHeader
+        eyebrow={data ? `${measured.length} de ${trends.length} búsquedas medidas` : 'Demanda en Vinted'}
+        title="Tendencias"
+        description="Qué se busca y se guarda en favoritos en Vinted, y a qué precio se vende. Úsalo antes de comprar un lote."
+        illustration="tendencias"
+        actions={
+          data && data.due > 0 ? <Badge tone="accent">{data.due} en la próxima sync de la extensión</Badge> : undefined
+        }
+      />
 
-      <div className="mt-8 space-y-3">
-        <ErrorNote problem={problem} />
-        {notice && (
-          <p role="status" className="border border-line px-3 py-2 text-sm">
-            {notice}
-          </p>
-        )}
-        {data && (
-          <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-            {measured.length} de {trends.length} búsquedas medidas
-            {data.due > 0 && <span className="text-paper"> · {data.due} en la próxima sync de la extensión</span>}
-          </p>
-        )}
-      </div>
+      <ErrorNote problem={problem} />
+      {notice && <Notice>{notice}</Notice>}
 
-      <div className="mt-4 overflow-x-auto border border-line">
-        <table className="w-full min-w-[980px] border-collapse text-sm">
-          <thead className="border-b border-line bg-panel">
+      {trends.length === 0 ? (
+        <div className={ui.card}>
+          <EmptyState illustration="tendencias" title={data === null ? 'Cargando…' : 'No hay búsquedas que medir'}>
+            {data !== null && (
+              <>
+                Añade queries semilla en <Link to="/ajustes" className={ui.link}>Ajustes</Link>, o registra items y
+                oportunidades: de sus títulos salen búsquedas automáticas.
+              </>
+            )}
+          </EmptyState>
+        </div>
+      ) : (
+        <TableCard minWidth={900}>
+          <thead>
             <tr>
-              <th className={`${ui.th} w-8 text-right`}>#</th>
+              <th className={`${ui.th} w-10 text-right`}>#</th>
               <th className={`${ui.th} min-w-[220px]`}>Búsqueda</th>
-              <th className={`${ui.th} text-right`}>Favs / día</th>
+              <th className={`${ui.th} min-w-[170px]`}>Favs / día</th>
               <th className={`${ui.th} text-right`}>vs semana ant.</th>
-              <th className={`${ui.th} text-right`}>Mediana</th>
-              <th className={`${ui.th} text-right`}>P25</th>
+              <th className={`${ui.th} text-right`}>Mediana · P25</th>
               <th className={`${ui.th} text-right`}>Venta est.</th>
               <th className={`${ui.th} text-right`}>Anuncios</th>
-              <th className={`${ui.th} text-right`}>Favs medios</th>
               <th className={ui.th}>Medido</th>
-              <th className={`${ui.th} text-right`}>Acción</th>
+              <th className={`${ui.th} text-right`}>
+                <span className="sr-only">Acción</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {trends.map((trend, index) => (
-              <tr key={trend.query} className="border-b border-line last:border-b-0 hover:bg-panel">
-                <td className={`${ui.td} text-right text-muted`}>{trend.computed_at ? index + 1 : '—'}</td>
+              <tr key={trend.query} className={ui.tr}>
+                <td className={`${ui.td} text-right text-faint`}>{trend.computed_at ? index + 1 : '—'}</td>
                 <td className={ui.td}>
                   <a
                     href={`https://www.vinted.es/catalog?search_text=${encodeURIComponent(trend.query)}`}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="font-semibold hover:text-accent"
+                    className="group inline-flex items-center gap-1.5 font-semibold hover:text-accent"
                   >
-                    {trend.query} <span aria-hidden="true">↗</span>
+                    {trend.query}
+                    <ExternalLink size={12} aria-hidden="true" className="text-faint group-hover:text-accent" />
                   </a>
-                  <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">
-                    {trend.origins.map((origin) => ORIGIN_LABELS[origin]).join(' · ')}
+                  <span className="mt-1 flex gap-1">
+                    {trend.origins.map((origin) => (
+                      <Badge key={origin} tone="neutral">
+                        {ORIGIN_LABELS[origin]}
+                      </Badge>
+                    ))}
                   </span>
                 </td>
-                <td className={`${ui.td} text-right font-display text-xl font-bold`}>
-                  {trend.favs_per_day === null ? '—' : trend.favs_per_day.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                <td className={ui.td}>
+                  {trend.favs_per_day === null ? (
+                    <span className="text-faint">—</span>
+                  ) : (
+                    <span className="flex items-center gap-3">
+                      <span className={`${ui.num} w-12 text-lg`}>
+                        {trend.favs_per_day.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                      </span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-sunken" aria-hidden="true">
+                        <span className="block h-full rounded-full bg-accent" style={{ width: `${(trend.favs_per_day / maxDemand) * 100}%` }} />
+                      </span>
+                    </span>
+                  )}
                 </td>
-                <td
-                  className={`${ui.td} text-right ${
-                    trend.week_change !== null && trend.week_change > 0 ? 'font-semibold text-accent' : ''
-                  }`}
-                >
-                  {signedPct(trend.week_change)}
+                <td className={`${ui.td} text-right`}>
+                  <Change ratio={trend.week_change} />
                 </td>
-                <td className={`${ui.td} text-right`}>{eur(trend.median_price)}</td>
-                <td className={`${ui.td} text-right`}>{eur(trend.p25_price)}</td>
+                <td className={`${ui.td} whitespace-nowrap text-right text-muted`}>
+                  {eur(trend.median_price)}
+                  <span className="block text-xs text-faint">{eur(trend.p25_price)}</span>
+                </td>
                 <td className={`${ui.td} text-right font-semibold`}>{eur(trend.est_price)}</td>
                 <td className={`${ui.td} text-right`}>
                   {trend.computed_at === null ? '—' : trend.listings_count >= 500 ? '500+' : trend.listings_count}
+                  {trend.avg_favs !== null && <span className="block text-xs text-faint">{num(trend.avg_favs)} favs/anuncio</span>}
                 </td>
-                <td className={`${ui.td} text-right`}>{num(trend.avg_favs)}</td>
-                <td className={`${ui.td} whitespace-nowrap text-muted`}>
+                <td className={`${ui.td} whitespace-nowrap text-xs text-muted`}>
                   {ago(trend.computed_at)}
-                  {trend.pending && trend.computed_at !== null && <span className="ml-1 text-paper">· caducada</span>}
+                  {trend.pending && trend.computed_at !== null && <span className="ml-1 text-pink">· caducada</span>}
                 </td>
                 <td className={`${ui.td} whitespace-nowrap text-right`}>
-                  <button type="button" className={`${ui.link} text-paper`} onClick={() => void searchSource(trend)}>
-                    Buscar en Hacoo
-                  </button>
+                  <IconButton label={`Buscar «${trend.query}» en Hacoo`} icon={Search} onClick={() => void searchSource(trend)} />
                 </td>
               </tr>
             ))}
-            {trends.length === 0 && (
-              <tr>
-                <td className="px-3 py-10 text-center text-muted" colSpan={11}>
-                  {data === null ? (
-                    'Cargando…'
-                  ) : (
-                    <>
-                      No hay búsquedas que medir. Añade queries semilla en{' '}
-                      <Link to="/ajustes" className="text-paper underline">
-                        Ajustes
-                      </Link>
-                      , o registra items y oportunidades: de sus títulos salen búsquedas automáticas.
-                    </>
-                  )}
-                </td>
-              </tr>
-            )}
           </tbody>
-        </table>
-      </div>
+        </TableCard>
+      )}
 
-      <div className="mt-3 max-w-prose space-y-2 text-xs text-muted">
+      <Card className="grid gap-4 p-5 text-[13px] leading-relaxed text-muted md:grid-cols-3">
         <p>
-          Cada búsqueda es la primera página de resultados públicos de vinted.es, leída por la extensión. Se repite
-          como mucho cada <code>TRENDS_CACHE_H</code> horas y sin pasar de <code>TRENDS_MAX_REQ_PER_HOUR</code>.
+          <strong className="block font-display text-base font-semibold text-ink">De dónde salen</strong>
+          Primera página de resultados públicos de vinted.es, leída por la extensión. Cada búsqueda se repite como mucho
+          cada <code>TRENDS_CACHE_H</code> horas.
         </p>
         <p>
-          <strong className="text-paper">Favs / día es una estimación</strong>: Vinted no muestra la fecha de
-          publicación en los resultados, así que la antigüedad de cada anuncio se calcula a partir de su número de
-          id (Vinted crea unos 13 millones de ids al día). Sirve para comparar búsquedas entre sí, no como cifra
-          exacta. «Venta est.» = (P25 + mediana) / 2 y es lo que se aplica a las oportunidades.
+          <strong className="block font-display text-base font-semibold text-ink">Favs / día es una estimación</strong>
+          Vinted no muestra la fecha de publicación: la antigüedad se calcula por el número de id. Sirve para comparar
+          búsquedas, no como cifra exacta.
         </p>
         <p>
-          «Buscar en Hacoo» copia la búsqueda y abre tu web de enlaces: Hacoo solo tiene buscador dentro de su app.
-          Puedes cambiar la URL en Ajustes.
+          <strong className="block font-display text-base font-semibold text-ink">Venta estimada</strong>
+          (P25 + mediana) / 2. Es el precio que se aplica a las oportunidades. «Buscar en Hacoo» copia la búsqueda y abre
+          tu web de enlaces.
         </p>
-      </div>
-    </section>
+      </Card>
+    </Page>
   );
 }

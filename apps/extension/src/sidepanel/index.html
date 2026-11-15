@@ -2,28 +2,46 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <title>ResellPilot</title>
     <link rel="stylesheet" href="./sidepanel.css" />
   </head>
   <body>
     <header>
-      <p class="brand">Resell<span>Pilot</span></p>
-      <p class="sub">Vinted.es · local</p>
+      <p class="brand">
+        <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M6 11.2 15.1 3.6a1.4 1.4 0 0 1 1.8 0L26 11.2V27a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z" fill="var(--accent)" />
+          <circle cx="16" cy="10.4" r="2.1" fill="var(--bg)" />
+          <path d="M10.2 20.6 22.4 15l-4.9 11.3-1.9-4.5Z" fill="var(--pink)" />
+          <path d="m15.6 21.8 6.8-6.8" stroke="var(--bg)" stroke-width="1.1" stroke-linecap="round" />
+        </svg>
+        <span class="word">Resell<span>Pilot</span></span>
+      </p>
+      <p class="sub">Tu cuenta de Vinted, en local</p>
     </header>
-    <main>
-      <p class="state" id="estado-fila"><i aria-hidden="true"></i><span id="estado">Cargando…</span></p>
-      <dl>
-        <dt>Última sync</dt>
-        <dd id="ultima-sync">—</dd>
-        <dd class="muted" id="resumen"></dd>
-      </dl>
-      <p class="note" id="aviso" role="status" aria-live="polite"></p>
-      <button type="button" class="primary" id="accion">Activar lectura</button>
-      <a class="secondary" href="http://localhost:4317" target="_blank" rel="noreferrer">Abrir dashboard</a>
-      <button type="button" class="link" id="desactivar" hidden>Desactivar lectura</button>
 
-      <section class="about">
+    <main>
+      <section class="status card">
+        <img class="art" src="/panel.png" alt="" width="72" height="72" />
+        <div>
+          <p class="state" id="estado-fila"><i aria-hidden="true"></i><span id="estado">Cargando…</span></p>
+          <dl>
+            <dt>Última sincronización</dt>
+            <dd id="ultima-sync">—</dd>
+            <dd class="muted" id="resumen"></dd>
+          </dl>
+        </div>
+      </section>
+
+      <p class="note" id="aviso" role="status" aria-live="polite"></p>
+
+      <div class="actions">
+        <button type="button" class="primary" id="accion">Activar lectura</button>
+        <a class="secondary" href="http://localhost:4317" target="_blank" rel="noreferrer">Abrir dashboard</a>
+        <button type="button" class="link" id="desactivar" hidden>Desactivar lectura</button>
+      </div>
+
+      <section class="about card">
         <h2>Qué hace</h2>
         <ul>
           <li>Lee tus anuncios, notificaciones y la lista de mensajes cada ~15 min, solo con una pestaña de vinted.es abierta.</li>

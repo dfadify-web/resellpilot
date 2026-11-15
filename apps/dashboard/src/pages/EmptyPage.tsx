@@ -1,4 +1,5 @@
 import type { NavItem } from '@resellpilot/shared';
+import { EmptyState, Page } from '../components/kit';
 import { ui, usePageTitle } from '../ui';
 
 interface Props {
@@ -6,22 +7,18 @@ interface Props {
   index: number;
 }
 
-/** Página aún sin contenido: título, regla y aviso de en qué fase se activa. */
-export function EmptyPage({ item, index }: Props) {
+/** Página aún sin contenido. */
+export function EmptyPage({ item }: Props) {
   usePageTitle(item.label);
 
   return (
-    <section className="px-6 py-8 md:px-12 md:py-12">
-      <p className={ui.eyebrow}>{String(index).padStart(2, '0')} / 07</p>
+    <Page>
       <h1 className={ui.h1}>{item.label}</h1>
-      <div className="mt-8 border-t border-line pt-6">
-        <p className="font-display text-2xl font-semibold uppercase text-muted">Sin datos todavía</p>
-        <p className="mt-2 max-w-prose text-sm text-muted">
-          {item.phase === null
-            ? 'Esta sección se irá activando fase a fase.'
-            : `Esta sección se activa en la Fase ${item.phase}.`}
-        </p>
+      <div className={ui.card}>
+        <EmptyState illustration="vacio-anuncios" title="Sin datos todavía">
+          {item.phase === null ? 'Esta sección se irá activando poco a poco.' : `Esta sección se activa en la Fase ${item.phase}.`}
+        </EmptyState>
       </div>
-    </section>
+    </Page>
   );
 }

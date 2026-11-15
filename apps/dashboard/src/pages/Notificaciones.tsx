@@ -5,9 +5,11 @@ import {
   type NotificationView,
   type VintedStatus,
 } from '@resellpilot/shared';
+import { BadgeEuro, Bell, CheckCheck, Heart, MessageCircle, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { Chips, EmptyState, Page, PageHeader } from '../components/kit';
 import { VintedStatusBar } from '../components/VintedStatusBar';
 import { ui, usePageTitle } from '../ui';
 
@@ -15,10 +17,17 @@ type Filter = NotificationType | 'todas' | 'sin_leer';
 
 const REFRESH_MS = 30_000;
 
+const TYPE_STYLE: Record<NotificationType, { icon: LucideIcon; className: string }> = {
+  favorito: { icon: Heart, className: 'bg-pink-soft text-pink' },
+  mensaje: { icon: MessageCircle, className: 'bg-accent-soft text-accent' },
+  venta: { icon: BadgeEuro, className: 'bg-accent text-on-accent' },
+  otro: { icon: Bell, className: 'bg-sunken text-muted' },
+};
+
 const when = (iso: string): string => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
 export function Notificaciones() {
@@ -65,103 +74,85 @@ export function Notificaciones() {
   const visible = all.filter((row) => matches(row, filter));
   const unread = all.filter((row) => !row.read).length;
 
-  const filters: [Filter, string][] = [
-    ['todas', 'Todas'],
-    ['sin_leer', 'Sin leer'],
-    ...NOTIFICATION_TYPES.map((type): [Filter, string] => [type, NOTIFICATION_TYPE_LABELS[type]]),
+  const filters: { value: Filter; label: string }[] = [
+    { value: 'todas', label: 'Todas' },
+    { value: 'sin_leer', label: 'Sin leer' },
+    ...NOTIFICATION_TYPES.map((type) => ({ value: type as Filter, label: NOTIFICATION_TYPE_LABELS[type] })),
   ];
 
   return (
-    <section className="px-6 py-8 md:px-12 md:py-12">
-      <p className={ui.eyebrow}>03 / 07</p>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className={ui.h1}>Notificaciones</h1>
-        <button type="button" className={ui.secondary} disabled={busy || unread === 0} onClick={() => void markRead()}>
-          Marcar todas leídas
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow={unread > 0 ? `${unread} sin leer` : 'Al día'}
+        title="Notificaciones"
+        description="Favoritos, mensajes y ventas de tu cuenta de Vinted. «Leída» es solo de ResellPilot: no cambia nada en Vinted."
+        illustration="notificaciones"
+        actions={
+          <>
+            <button type="button" className={ui.secondary} disabled={busy || unread === 0} onClick={() => void markRead()}>
+              <CheckCheck size={16} aria-hidden="true" />
+              Marcar todas leídas
+            </button>
+            <VintedStatusBar status={status?.last_sync_at && !status.paused ? status : null} />
+          </>
+        }
+      />
 
-      <div className="mt-8 space-y-3">
-        <VintedStatusBar status={status} />
-        <ErrorNote problem={problem} />
-      </div>
+      {status && (status.paused || !status.last_sync_at) && <VintedStatusBar status={status} />}
+      <ErrorNote problem={problem} />
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {filters.map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
-            className={`border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${
-              filter === value ? 'border-accent text-paper' : 'border-line text-muted hover:text-paper'
-            }`}
-          >
-            {label} <span className="ml-1 text-paper">{all.filter((row) => matches(row, value)).length}</span>
-          </button>
-        ))}
-      </div>
+      <div className="space-y-3">
+        <Chips
+          label="Filtrar notificaciones"
+          value={filter}
+          onChange={setFilter}
+          options={filters.map((option) => ({ ...option, count: all.filter((row) => matches(row, option.value)).length }))}
+        />
 
-      <div className="mt-4 overflow-x-auto border border-line">
-        <table className="w-full min-w-[760px] border-collapse text-sm">
-          <thead className="border-b border-line bg-panel">
-            <tr>
-              <th className={`${ui.th} w-6`}>
-                <span className="sr-only">Sin leer</span>
-              </th>
-              <th className={ui.th}>Fecha</th>
-              <th className={ui.th}>Tipo</th>
-              <th className={ui.th}>Detalle</th>
-              <th className={ui.th}>Anuncio</th>
-              <th className={`${ui.th} text-right`}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((row) => (
-              <tr key={row.id} className="border-b border-line last:border-b-0 hover:bg-panel">
-                <td className={ui.td}>
-                  {!row.read && <span className="inline-block h-2 w-2 bg-accent" role="img" aria-label="Sin leer" />}
-                </td>
-                <td className={`${ui.td} whitespace-nowrap text-muted`}>{when(row.created_at)}</td>
-                <td className={ui.td}>
-                  <span
-                    className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
-                      row.type === 'venta' ? 'bg-accent text-ink' : 'border border-line text-muted'
-                    }`}
-                  >
-                    {NOTIFICATION_TYPE_LABELS[row.type] ?? row.type}
-                  </span>
-                </td>
-                <td className={`${ui.td} ${row.read ? 'text-muted' : 'font-semibold'}`}>{row.text ?? '—'}</td>
-                <td className={`${ui.td} text-muted`}>{row.listing_title ?? '—'}</td>
-                <td className={`${ui.td} whitespace-nowrap text-right`}>
-                  {!row.read && (
-                    <button type="button" className={ui.link} disabled={busy} onClick={() => void markRead([row.id])}>
-                      Marcar leída
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {visible.length === 0 && (
-              <tr>
-                <td className="px-3 py-10 text-center text-muted" colSpan={6}>
-                  {rows === null
-                    ? 'Cargando…'
-                    : all.length === 0
-                      ? 'Aún no hay notificaciones. Aparecerán tras la primera sync de la extensión.'
-                      : 'Ninguna notificación en este filtro.'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <div className={`${ui.card} overflow-hidden`}>
+          {visible.length === 0 ? (
+            <EmptyState
+              illustration="vacio-notificaciones"
+              title={rows === null ? 'Cargando…' : all.length === 0 ? 'Todo en calma' : 'Nada en este filtro'}
+            >
+              {rows !== null && all.length === 0 && 'Las notificaciones aparecerán tras la primera sincronización de la extensión.'}
+            </EmptyState>
+          ) : (
+            <ul className="divide-y divide-line">
+              {visible.map((row) => {
+                const style = TYPE_STYLE[row.type] ?? TYPE_STYLE.otro;
+                const Icon = style.icon;
+                return (
+                  <li key={row.id} className={`flex items-start gap-4 px-5 py-4 transition-colors hover:bg-sunken/60 ${row.read ? '' : 'bg-accent-soft/30'}`}>
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${style.className}`}>
+                      <Icon size={16} aria-hidden="true" />
+                      <span className="sr-only">{NOTIFICATION_TYPE_LABELS[row.type]}</span>
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={row.read ? 'text-muted' : 'font-semibold'}>{row.text ?? '—'}</p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        {when(row.created_at)}
+                        {row.listing_title && <> · {row.listing_title}</>}
+                      </p>
+                    </div>
+                    {!row.read && (
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="h-2 w-2 rounded-full bg-pink-ink" role="img" aria-label="Sin leer" />
+                        <button type="button" className={ui.linkMuted} disabled={busy} onClick={() => void markRead([row.id])}>
+                          Marcar leída
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <p className="text-xs text-muted">
+          Los mensajes se detectan por las conversaciones con algo sin leer; las ventas, cuando un anuncio pasa a vendido.
+        </p>
       </div>
-
-      <p className="mt-3 max-w-prose text-xs text-muted">
-        «Leída» se refiere a ResellPilot: marcarla aquí no cambia nada en Vinted. Los mensajes se detectan por la
-        lista de conversaciones con algo sin leer; las ventas, cuando un anuncio pasa a vendido.
-      </p>
-    </section>
+    </Page>
   );
 }

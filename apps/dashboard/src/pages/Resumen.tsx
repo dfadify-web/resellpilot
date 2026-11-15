@@ -1,32 +1,15 @@
 import { STOCK_LABELS, STOCK_STATES } from '@resellpilot/shared';
+import { Boxes, CircleDollarSign, Clock3, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, describeError, type SummaryResponse } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { Badge, Card, CardHeader, EmptyState, Kpi, Page, PageHeader } from '../components/kit';
 import { ReportsPanel } from '../components/ReportsPanel';
 import { eur, monthName, num, pct, shortDate, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
 
-interface KpiProps {
-  label: string;
-  value: string;
-  note: string;
-  accent?: boolean;
-}
-
-function Kpi({ label, value, note, accent = false }: KpiProps) {
-  return (
-    <div className="border-b border-line px-5 py-5 sm:border-r xl:border-b-0 xl:last:border-r-0">
-      <p className={ui.eyebrow}>{label}</p>
-      <p
-        className={`mt-2 font-display text-6xl font-bold leading-none tracking-tight ${accent ? 'text-accent' : ''}`}
-      >
-        {value}
-      </p>
-      <p className="mt-2 text-xs text-muted">{note}</p>
-    </div>
-  );
-}
+const sales = (n: number) => (n === 1 ? '1 venta' : `${n} ventas`);
 
 export function Resumen() {
   usePageTitle('Resumen');
@@ -45,121 +28,101 @@ export function Resumen() {
   }, []);
 
   const maxCount = summary ? Math.max(1, ...Object.values(summary.by_stock)) : 1;
-  const sales = (n: number) => (n === 1 ? '1 venta' : `${n} ventas`);
+  const month = summary ? monthName(summary.month) : '';
 
   return (
-    <section className="px-6 py-8 md:px-12 md:py-12">
-      <p className={ui.eyebrow}>01 / 07</p>
-      <h1 className={ui.h1}>Resumen</h1>
+    <Page>
+      <PageHeader
+        eyebrow={month || 'Resumen'}
+        title="Cómo va tu reventa"
+        description="Beneficio real, dinero parado en stock y lo rápido que vendes. Todo sale de tu inventario."
+        illustration="dinero"
+      />
 
-      <div className="mt-8">
-        <ErrorNote problem={problem} />
-      </div>
+      <ErrorNote problem={problem} />
+      {!summary && !problem && <p className="text-sm text-muted">Cargando…</p>}
 
       {summary && (
         <>
-          <div className="grid grid-cols-1 border border-line sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi
-              label={`Beneficio · ${monthName(summary.month)}`}
+              tone="feature"
+              icon={CircleDollarSign}
+              label="Beneficio del mes"
               value={signedEur(summary.month_profit)}
-              note={`${sales(summary.month_sales)} este mes · total histórico ${signedEur(summary.total_profit)}`}
-              accent={summary.month_profit > 0}
+              note={`${sales(summary.month_sales)} este mes · ${signedEur(summary.total_profit)} en total`}
             />
+            <Kpi icon={Wallet} label="Capital inmovilizado" value={eur(summary.tied_capital)} note="Comprado y aún sin vender" />
             <Kpi
-              label="Capital inmovilizado"
-              value={eur(summary.tied_capital)}
-              note="Comprado y aún sin vender"
-            />
-            <Kpi
+              icon={Clock3}
               label="Rotación media"
               value={summary.avg_rotation_days === null ? '—' : `${num(summary.avg_rotation_days)} d`}
-              note={
-                summary.total_sales === 0
-                  ? 'Sin ventas todavía'
-                  : `Días del alta a la venta · ${sales(summary.total_sales)}`
-              }
+              note={summary.total_sales === 0 ? 'Sin ventas todavía' : `Del alta a la venta · ${sales(summary.total_sales)}`}
             />
-            <Kpi label="Items" value={String(summary.total_items)} note="En todos los estados" />
+            <Kpi icon={Boxes} label="Items" value={String(summary.total_items)} note="En todos los estados" />
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-10 xl:grid-cols-2">
-            <div>
-              <h2 className="font-display text-3xl font-bold uppercase">Items por estado</h2>
-              <table className="mt-3 w-full border-collapse border border-line text-sm">
-                <tbody>
-                  {STOCK_STATES.map((state) => {
-                    const total = summary.by_stock[state];
-                    return (
-                      <tr key={state} className="border-b border-line last:border-b-0">
-                        <th scope="row" className={`${ui.th} w-32 whitespace-nowrap`}>
-                          {STOCK_LABELS[state]}
-                        </th>
-                        <td className="px-3 py-2">
-                          <div
-                            aria-hidden="true"
-                            className={`h-2 ${state === 'vendido' ? 'bg-accent' : 'bg-muted'}`}
-                            style={{ width: `${(total / maxCount) * 100}%` }}
-                          />
-                        </td>
-                        <td className="w-12 px-3 py-2 text-right font-semibold">{total}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div>
-              <h2 className="font-display text-3xl font-bold uppercase">Últimas ventas</h2>
-              <div className="mt-3 overflow-x-auto border border-line">
-                <table className="w-full border-collapse text-sm">
-                  <thead className="border-b border-line bg-panel">
-                    <tr>
-                      <th className={ui.th}>Item</th>
-                      <th className={ui.th}>Fecha</th>
-                      <th className={`${ui.th} text-right`}>Venta</th>
-                      <th className={`${ui.th} text-right`}>Beneficio</th>
-                      <th className={`${ui.th} text-right`}>ROI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.recent_sales.map((item) => (
-                      <tr key={item.id} className="border-b border-line last:border-b-0">
-                        <td className={`${ui.td} font-semibold`}>{item.name}</td>
-                        <td className={`${ui.td} text-muted`}>{shortDate(item.sold_at)}</td>
-                        <td className={`${ui.td} text-right`}>{eur(item.sold_price)}</td>
-                        <td
-                          className={`${ui.td} text-right font-semibold ${
-                            item.profit !== null && item.profit > 0 ? 'text-accent' : ''
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <Card>
+              <CardHeader title="Items por estado" description="Dónde está cada cosa que has comprado." />
+              <ul className="space-y-3 px-5 pb-5 pt-4">
+                {STOCK_STATES.map((state) => {
+                  const total = summary.by_stock[state];
+                  return (
+                    <li key={state} className="grid grid-cols-[96px_1fr_32px] items-center gap-3 text-sm">
+                      <span className="text-muted">{STOCK_LABELS[state]}</span>
+                      <span className="h-2.5 overflow-hidden rounded-full bg-sunken" aria-hidden="true">
+                        <span
+                          className={`block h-full rounded-full transition-[width] duration-700 ${
+                            state === 'vendido' ? 'bg-accent' : state === 'devuelto' ? 'bg-pink-ink' : 'bg-line-strong'
                           }`}
-                        >
-                          {signedEur(item.profit)}
-                        </td>
-                        <td className={`${ui.td} text-right`}>{pct(item.roi)}</td>
-                      </tr>
-                    ))}
-                    {summary.recent_sales.length === 0 && (
-                      <tr>
-                        <td className="px-3 py-8 text-center text-muted" colSpan={5}>
-                          Aún no hay ventas. Registra una compra en{' '}
-                          <Link to="/inventario" className="text-paper underline">
-                            Inventario
-                          </Link>{' '}
-                          y márcala vendida.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                          style={{ width: `${(total / maxCount) * 100}%` }}
+                        />
+                      </span>
+                      <span className="text-right font-semibold tabular-nums">{total}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Últimas ventas"
+                description="Las cinco más recientes, con su beneficio real."
+                actions={
+                  <Link to="/inventario" className={ui.link}>
+                    Ver inventario
+                  </Link>
+                }
+              />
+              {summary.recent_sales.length === 0 ? (
+                <EmptyState illustration="vacio-anuncios" title="Aún no hay ventas">
+                  Registra una compra en <Link to="/inventario" className={ui.link}>Inventario</Link> y márcala como
+                  vendida para ver aquí tu beneficio.
+                </EmptyState>
+              ) : (
+                <ul className="mt-3 divide-y divide-line border-t border-line">
+                  {summary.recent_sales.map((item) => (
+                    <li key={item.id} className="flex items-center gap-4 px-5 py-3.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold">{item.name}</p>
+                        <p className="text-xs text-muted">
+                          {shortDate(item.sold_at)} · vendido por {eur(item.sold_price)}
+                        </p>
+                      </div>
+                      <span className="hidden text-xs text-muted sm:inline">ROI {pct(item.roi)}</span>
+                      <Badge tone={item.profit !== null && item.profit > 0 ? 'accent' : 'pink'}>{signedEur(item.profit)}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
           </div>
 
           <ReportsPanel />
         </>
       )}
-
-      {!summary && !problem && <p className="text-sm text-muted">Cargando…</p>}
-    </section>
+    </Page>
   );
 }

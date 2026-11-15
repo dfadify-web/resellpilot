@@ -1,8 +1,10 @@
 import { RISK_BRAND, type DealStatus, type DealView } from '@resellpilot/shared';
+import { ExternalLink, ImageOff, RefreshCw, RotateCcw, Send, ShoppingBag, Star, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, describeError, type SourcesResponse } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
+import { Badge, Card, CardHeader, Chips, EmptyState, IconButton, Notice, Page, PageHeader, TableCard } from '../components/kit';
 import { pct, shortDate, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
 
@@ -12,9 +14,9 @@ const STATUS_LABELS: Record<DealStatus, string> = {
   comprado: 'Compradas',
 };
 
-const RISK_LABELS: Record<string, string> = { [RISK_BRAND]: 'Riesgo marca' };
+const RISK_LABELS: Record<string, string> = { [RISK_BRAND]: 'Marca' };
 
-const toText = (value: number | null): string => (value === null ? '' : String(value).replace('.', ','));
+const toText = (value: number | null): string => (value === null ? '' : value.toFixed(2).replace('.', ','));
 
 interface MoneyInputProps {
   label: string;
@@ -63,10 +65,26 @@ function MoneyInput({ label, value, disabled, onCommit }: MoneyInputProps) {
       onChange={(event) => setText(event.target.value)}
       onBlur={commit}
       onKeyDown={onKeyDown}
-      className={`w-20 border bg-ink px-2 py-1 text-right text-sm text-paper placeholder:text-muted focus:border-accent focus:outline-none disabled:opacity-50 ${
-        invalid ? 'border-accent' : 'border-line'
+      className={`h-8 w-20 rounded-lg border bg-surface px-2 text-right text-sm text-ink placeholder:text-faint transition focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/15 disabled:border-transparent disabled:bg-transparent ${
+        invalid ? 'border-pink' : 'border-line'
       }`}
     />
+  );
+}
+
+/** Puntuación 0–100 como anillo. */
+function Score({ value, muted }: { value: number; muted: boolean }) {
+  const angle = Math.max(0, Math.min(100, value)) * 3.6;
+  return (
+    <span
+      className="relative inline-grid h-10 w-10 place-items-center rounded-full"
+      style={{ background: muted ? 'var(--color-sunken)' : `conic-gradient(var(--color-accent) ${angle}deg, var(--color-sunken) 0)` }}
+      title={`Score ${toText(value)} de 100`}
+    >
+      <span className="grid h-8 w-8 place-items-center rounded-full bg-surface text-[12px] font-bold tabular-nums">
+        {muted ? '—' : Math.round(value)}
+      </span>
+    </span>
   );
 }
 
@@ -137,315 +155,276 @@ export function Oportunidades() {
     (deal) =>
       deal.status === status &&
       (!onlyRecommended || deal.recommended) &&
-      (maxPriceNumber === null ||
-        !Number.isFinite(maxPriceNumber) ||
-        (deal.price !== null && deal.price <= maxPriceNumber)),
+      (maxPriceNumber === null || !Number.isFinite(maxPriceNumber) || (deal.price !== null && deal.price <= maxPriceNumber)),
   );
   const count = (value: DealStatus) => all.filter((deal) => deal.status === value).length;
   const recommendedCount = all.filter((deal) => deal.recommended).length;
   const failedSources = sources?.sources.filter((source) => source.ok === false).length ?? 0;
 
   return (
-    <section className="px-6 py-8 md:px-12 md:py-12">
-      <p className={ui.eyebrow}>04 / 07</p>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className={ui.h1}>Oportunidades</h1>
-        <button type="button" className={ui.primary} disabled={busy} onClick={() => void searchNow()}>
-          {searching ? 'Buscando…' : 'Buscar ahora'}
-        </button>
-      </div>
+    <Page>
+      <PageHeader
+        eyebrow={recommendedCount > 0 ? `${recommendedCount} recomendadas` : 'Cada 10 minutos'}
+        title="Oportunidades"
+        description="Productos de tus fuentes con el beneficio que dejarían revendidos en Vinted, según los precios reales de Tendencias."
+        illustration="oportunidades"
+        actions={
+          <button type="button" className={ui.primary} disabled={busy} onClick={() => void searchNow()}>
+            <RefreshCw size={16} aria-hidden="true" className={searching ? 'animate-spin' : ''} />
+            {searching ? 'Buscando…' : 'Buscar ahora'}
+          </button>
+        }
+      />
 
-      <div className="mt-8 flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-line pt-6">
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(STATUS_LABELS) as DealStatus[]).map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={status === value}
-              onClick={() => setStatus(value)}
-              className={`border px-3 py-1 text-[11px] uppercase tracking-[0.14em] ${
-                status === value ? 'border-accent text-paper' : 'border-line text-muted hover:text-paper'
-              }`}
-            >
-              {STATUS_LABELS[value]} <span className="ml-1 text-paper">{count(value)}</span>
-            </button>
-          ))}
+      <ErrorNote problem={problem} />
+      {notice && <Notice>{notice}</Notice>}
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <Chips
+            label="Estado de las oportunidades"
+            value={status}
+            onChange={setStatus}
+            options={(Object.keys(STATUS_LABELS) as DealStatus[]).map((value) => ({
+              value,
+              label: STATUS_LABELS[value],
+              count: count(value),
+            }))}
+          />
+          <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted">
+            <input
+              type="checkbox"
+              className="h-4 w-4 cursor-pointer"
+              checked={onlyRecommended}
+              onChange={(event) => setOnlyRecommended(event.target.checked)}
+            />
+            Solo recomendadas
+          </label>
+          <label className="flex items-center gap-2 text-[13px] font-medium text-muted">
+            Precio máx.
+            <span className="relative">
+              <input
+                inputMode="decimal"
+                placeholder="—"
+                value={maxPrice}
+                onChange={(event) => setMaxPrice(event.target.value)}
+                className="h-8 w-24 rounded-full border border-line bg-surface pl-3 pr-7 text-right text-sm text-ink placeholder:text-faint focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/15"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-faint">€</span>
+            </span>
+          </label>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-muted">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-[var(--color-accent)]"
-            checked={onlyRecommended}
-            onChange={(event) => setOnlyRecommended(event.target.checked)}
-          />
-          Solo recomendadas <span className="text-paper">{recommendedCount}</span>
-        </label>
-        <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-muted">
-          Precio máx. €
-          <input
-            inputMode="decimal"
-            placeholder="—"
-            value={maxPrice}
-            onChange={(event) => setMaxPrice(event.target.value)}
-            className="w-20 border border-line bg-ink px-2 py-1 text-right text-sm text-paper placeholder:text-muted focus:border-accent focus:outline-none"
-          />
-        </label>
-      </div>
 
-      <div className="mt-4 space-y-3">
-        <ErrorNote problem={problem} />
-        {notice && (
-          <p role="status" className="border border-line px-3 py-2 text-sm">
-            {notice}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-4 overflow-x-auto border border-line">
-        <table className="w-full min-w-[1040px] border-collapse text-sm">
-          <thead className="border-b border-line bg-panel">
-            <tr>
-              <th className={`${ui.th} min-w-[300px]`}>Oportunidad</th>
-              <th className={`${ui.th} text-right`}>Precio €</th>
-              <th className={`${ui.th} text-right`}>Venta est. €</th>
-              <th className={`${ui.th} text-right`}>Beneficio est.</th>
-              <th className={`${ui.th} text-right`}>ROI</th>
-              <th className={`${ui.th} text-right`}>Score</th>
-              <th className={ui.th}>Aviso</th>
-              <th className={`${ui.th} text-right`}>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((deal) => {
-              const name = deal.title ?? `Oportunidad #${deal.id}`;
-              const editable = deal.status === 'nuevo' && !busy;
-              return (
-                <tr key={deal.id} className="border-b border-line last:border-b-0 hover:bg-panel">
-                  <td className={ui.td}>
-                    <div className="flex items-center gap-3">
-                      {deal.image ? (
-                        <img
-                          src={deal.image}
-                          alt=""
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                          className="h-12 w-12 shrink-0 border border-line object-cover"
-                          onError={(event) => {
-                            event.currentTarget.style.visibility = 'hidden';
-                          }}
-                        />
-                      ) : (
-                        <div className="h-12 w-12 shrink-0 border border-line" aria-hidden="true" />
-                      )}
-                      <div className="min-w-0">
-                        <a
-                          href={deal.url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="font-semibold hover:text-accent"
-                        >
-                          {name} <span aria-hidden="true">↗</span>
-                        </a>
-                        <span className="block text-xs text-muted">
-                          {deal.source ?? 'Sin fuente'} · {shortDate(deal.found_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className={`${ui.td} text-right`}>
-                    <MoneyInput
-                      label={`Precio de ${name}`}
-                      value={deal.price}
-                      disabled={!editable}
-                      onCommit={(price) => void run(() => api.updateDeal(deal.id, { price }).then(() => undefined))}
-                    />
-                  </td>
-                  <td className={`${ui.td} text-right`}>
-                    <MoneyInput
-                      label={`Precio de venta estimado de ${name}`}
-                      value={deal.est_price}
-                      disabled={!editable}
-                      onCommit={(est_price) =>
-                        void run(() => api.updateDeal(deal.id, { est_price }).then(() => undefined))
-                      }
-                    />
-                    {deal.est_price !== null && !deal.est_manual && (
-                      <span className="block text-[10px] uppercase tracking-[0.12em] text-muted" title="Calculado por Tendencias: (p25 + mediana) / 2">
-                        auto
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    className={`${ui.td} text-right font-semibold ${
-                      deal.est_profit !== null && deal.est_profit > 0 ? 'text-accent' : ''
-                    }`}
-                  >
-                    {signedEur(deal.est_profit)}
-                  </td>
-                  <td className={`${ui.td} text-right`}>{pct(deal.roi)}</td>
-                  <td className={`${ui.td} text-right font-display text-xl font-bold`}>
-                    {deal.est_profit === null ? '—' : String(deal.score).replace('.', ',')}
-                  </td>
-                  <td className={ui.td}>
-                    <div className="flex flex-wrap gap-1">
-                      {deal.recommended && (
-                        <span className="bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-ink">
-                          Recomendada
-                        </span>
-                      )}
-                      {deal.risk_flags.map((flag) => (
-                        <span
-                          key={flag}
-                          className="border border-muted px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted"
-                        >
-                          {RISK_LABELS[flag] ?? flag}
-                        </span>
-                      ))}
-                      {deal.price === null && deal.status === 'nuevo' && (
-                        <span className="border border-line px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted">
-                          Falta precio
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className={`${ui.td} whitespace-nowrap text-right`}>
-                    {deal.status === 'nuevo' && (
-                      <>
-                        <button
-                          type="button"
-                          className={`${ui.link} mr-4 text-paper`}
-                          disabled={busy}
-                          onClick={() =>
-                            void run(async () => {
-                              await api.buyDeal(deal.id);
-                              return `«${name}» añadido a Inventario como pedido.`;
-                            })
-                          }
-                        >
-                          Comprado
-                        </button>
-                        <button
-                          type="button"
-                          className={ui.link}
-                          disabled={busy}
-                          onClick={() =>
-                            void run(() => api.updateDeal(deal.id, { status: 'descartado' }).then(() => undefined))
-                          }
-                        >
-                          Descartar
-                        </button>
-                      </>
-                    )}
-                    {deal.status === 'descartado' && (
-                      <button
-                        type="button"
-                        className={ui.link}
-                        disabled={busy}
-                        onClick={() => void run(() => api.updateDeal(deal.id, { status: 'nuevo' }).then(() => undefined))}
-                      >
-                        Restaurar
-                      </button>
-                    )}
-                    {deal.status === 'comprado' && (
-                      <Link to="/inventario" className={ui.link}>
-                        Ver en inventario
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {visible.length === 0 && (
+        {visible.length === 0 ? (
+          <div className={ui.card}>
+            <EmptyState
+              illustration="vacio-oportunidades"
+              title={deals === null ? 'Cargando…' : all.length === 0 ? 'Aún no hay oportunidades' : 'Nada con estos filtros'}
+              action={
+                deals !== null && all.length === 0 ? (
+                  <button type="button" className={ui.secondary} disabled={busy} onClick={() => void searchNow()}>
+                    Buscar ahora
+                  </button>
+                ) : undefined
+              }
+            >
+              {deals !== null && all.length === 0 && 'La búsqueda automática pasa por tus fuentes cada 10 minutos.'}
+            </EmptyState>
+          </div>
+        ) : (
+          <TableCard minWidth={900}>
+            <thead>
               <tr>
-                <td className="px-3 py-10 text-center text-muted" colSpan={8}>
-                  {deals === null
-                    ? 'Cargando…'
-                    : all.length === 0
-                      ? 'Aún no hay oportunidades. Pulsa «Buscar ahora» o espera a la próxima búsqueda automática (cada 10 min).'
-                      : 'Ninguna oportunidad cumple estos filtros.'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="mt-3 max-w-prose text-xs text-muted">
-        El precio de venta estimado se rellena solo desde Tendencias (marcado «auto») cuando el título coincide con
-        una búsqueda medida; si lo escribes tú, manda el tuyo, y si lo borras vuelve el automático.
-      </p>
-
-      <details className="mt-8 border border-line" open={failedSources > 0}>
-        <summary className="cursor-pointer px-4 py-3 font-display text-2xl font-bold uppercase">
-          Fuentes{' '}
-          <span className="font-sans text-xs font-normal normal-case text-muted">
-            {sources ? `${sources.sources.length} en sources.json` : ''}
-            {failedSources > 0 ? ` · ${failedSources} con error` : ''}
-          </span>
-        </summary>
-        <div className="overflow-x-auto border-t border-line">
-          <table className="w-full border-collapse text-sm">
-            <thead className="border-b border-line bg-panel">
-              <tr>
-                <th className={ui.th}>Fuente</th>
-                <th className={ui.th}>Última búsqueda</th>
-                <th className={`${ui.th} text-right`}>Enlaces</th>
-                <th className={`${ui.th} text-right`}>Nuevas</th>
-                <th className={ui.th}>Estado</th>
+                <th className={`${ui.th} min-w-[280px]`}>Oportunidad</th>
+                <th className={`${ui.th} text-right`}>Compra</th>
+                <th className={`${ui.th} text-right`}>Venta est.</th>
+                <th className={`${ui.th} text-right`}>Beneficio</th>
+                <th className={`${ui.th} text-right`}>ROI</th>
+                <th className={`${ui.th} text-center`}>Score</th>
+                <th className={`${ui.th} text-right`}>
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {(sources?.sources ?? []).map((source) => (
-                <tr key={`${source.type}|${source.url}`} className="border-b border-line last:border-b-0">
-                  <td className={ui.td}>
-                    <a href={source.url} target="_blank" rel="noreferrer noopener" className="hover:text-accent">
-                      {source.name}
-                    </a>
-                  </td>
-                  <td className={`${ui.td} text-muted`}>
-                    {source.last_run_at
-                      ? new Date(source.last_run_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-                      : 'Pendiente'}
-                  </td>
-                  <td className={`${ui.td} text-right`}>{source.last_run_at ? source.found : '—'}</td>
-                  <td className={`${ui.td} text-right`}>{source.last_run_at ? source.added : '—'}</td>
-                  <td className={ui.td}>
-                    {source.ok === null ? (
-                      <span className="text-muted">—</span>
-                    ) : source.ok ? (
-                      'Correcto'
-                    ) : (
-                      <span className="text-accent">{source.error ?? 'Error'}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {sources !== null && sources.sources.length === 0 && (
-                <tr>
-                  <td className="px-3 py-6 text-center text-muted" colSpan={5}>
-                    No hay fuentes. Añádelas en <code>sources.json</code>.
-                  </td>
-                </tr>
-              )}
+              {visible.map((deal) => {
+                const name = deal.title ?? `Oportunidad #${deal.id}`;
+                const editable = deal.status === 'nuevo' && !busy;
+                return (
+                  <tr key={deal.id} className={`${ui.tr} ${deal.recommended ? 'bg-accent-soft/35' : ''}`}>
+                    <td className={ui.td}>
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-sunken">
+                          {deal.image ? (
+                            <img
+                              src={deal.image}
+                              alt=""
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              className="h-full w-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <ImageOff size={18} aria-hidden="true" className="text-faint" />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <a
+                            href={deal.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="group line-clamp-2 font-semibold leading-snug hover:text-accent"
+                          >
+                            {name}
+                            <ExternalLink size={12} aria-hidden="true" className="ml-1 inline text-faint group-hover:text-accent" />
+                          </a>
+                          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                            {deal.recommended && (
+                              <Badge tone="accentSolid">
+                                <Star size={11} aria-hidden="true" className="fill-current" /> Recomendada
+                              </Badge>
+                            )}
+                            {deal.risk_flags.map((flag) => (
+                              <Badge key={flag} tone="outline">
+                                {RISK_LABELS[flag] ?? flag}
+                              </Badge>
+                            ))}
+                            {deal.price === null && deal.status === 'nuevo' && <Badge tone="pink">Falta precio</Badge>}
+                            <span>
+                              {deal.source ?? 'Sin fuente'} · {shortDate(deal.found_at)}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`${ui.td} text-right`}>
+                      <MoneyInput
+                        label={`Precio de ${name}`}
+                        value={deal.price}
+                        disabled={!editable}
+                        onCommit={(price) => void run(() => api.updateDeal(deal.id, { price }).then(() => undefined))}
+                      />
+                    </td>
+                    <td className={`${ui.td} text-right`}>
+                      <MoneyInput
+                        label={`Precio de venta estimado de ${name}`}
+                        value={deal.est_price}
+                        disabled={!editable}
+                        onCommit={(est_price) => void run(() => api.updateDeal(deal.id, { est_price }).then(() => undefined))}
+                      />
+                      {deal.est_price !== null && !deal.est_manual && (
+                        <span className="mt-0.5 block text-[11px] text-faint" title="Calculado por Tendencias: (p25 + mediana) / 2">
+                          automático
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      className={`${ui.td} text-right font-semibold ${
+                        deal.est_profit !== null && deal.est_profit > 0 ? 'text-accent' : deal.est_profit !== null ? 'text-pink' : ''
+                      }`}
+                    >
+                      {signedEur(deal.est_profit)}
+                    </td>
+                    <td className={`${ui.td} text-right`}>{pct(deal.roi)}</td>
+                    <td className={`${ui.td} text-center`}>
+                      <Score value={deal.score} muted={deal.est_profit === null} />
+                    </td>
+                    <td className={`${ui.td} whitespace-nowrap text-right`}>
+                      {deal.status === 'nuevo' && (
+                        <span className="inline-flex items-center gap-1">
+                          <IconButton
+                            label={`Comprado: añadir «${name}» a Inventario`}
+                            icon={ShoppingBag}
+                            disabled={busy}
+                            onClick={() =>
+                              void run(async () => {
+                                await api.buyDeal(deal.id);
+                                return `«${name}» añadido a Inventario como pedido.`;
+                              })
+                            }
+                          />
+                          <IconButton
+                            label={`Descartar «${name}»`}
+                            icon={X}
+                            disabled={busy}
+                            onClick={() => void run(() => api.updateDeal(deal.id, { status: 'descartado' }).then(() => undefined))}
+                          />
+                        </span>
+                      )}
+                      {deal.status === 'descartado' && (
+                        <IconButton
+                          label={`Restaurar «${name}»`}
+                          icon={RotateCcw}
+                          disabled={busy}
+                          onClick={() => void run(() => api.updateDeal(deal.id, { status: 'nuevo' }).then(() => undefined))}
+                        />
+                      )}
+                      {deal.status === 'comprado' && (
+                        <Link to="/inventario" className={ui.link}>
+                          Ver en inventario
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
-          </table>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3 text-sm">
-          <p className="text-muted">
-            {sources?.telegram
-              ? 'Avisos por Telegram activados: recibirás un mensaje cuando una oportunidad pase a recomendada.'
-              : 'Telegram sin configurar: añade TELEGRAM_BOT_TOKEN en .env para recibir avisos.'}
-          </p>
-          <button
-            type="button"
-            className={ui.secondary}
-            disabled={busy || !sources?.telegram}
-            onClick={() => void testTelegram()}
-          >
-            Probar Telegram
-          </button>
-        </div>
-      </details>
-    </section>
+          </TableCard>
+        )}
+        <p className="max-w-[80ch] text-xs leading-relaxed text-muted">
+          La venta estimada sale sola de Tendencias («automático») cuando el título coincide con una búsqueda medida. Si
+          la escribes tú, manda la tuya; si la borras, vuelve la automática.
+        </p>
+      </div>
+
+      <Card as="section">
+        <CardHeader
+          title="Fuentes"
+          description={
+            <>
+              {sources ? `${sources.sources.length} en sources.json` : 'Cargando…'}
+              {failedSources > 0 && <span className="font-semibold text-pink"> · {failedSources} con error</span>}
+            </>
+          }
+          actions={
+            <button type="button" className={ui.secondary} disabled={busy || !sources?.telegram} onClick={() => void testTelegram()}>
+              <Send size={15} aria-hidden="true" />
+              Probar Telegram
+            </button>
+          }
+        />
+        <ul className="mt-4 divide-y divide-line border-t border-line">
+          {(sources?.sources ?? []).map((source) => (
+            <li key={`${source.type}|${source.url}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm">
+              <span
+                aria-hidden="true"
+                className={`h-2 w-2 rounded-full ${source.ok === null ? 'bg-faint' : source.ok ? 'bg-accent' : 'bg-pink-ink'}`}
+              />
+              <a href={source.url} target="_blank" rel="noreferrer noopener" className="min-w-0 flex-1 truncate font-medium hover:text-accent">
+                {source.name}
+              </a>
+              <span className="text-xs text-muted">
+                {source.last_run_at
+                  ? `${new Date(source.last_run_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · ${source.found} enlaces · ${source.added} nuevas`
+                  : 'Pendiente'}
+              </span>
+              {source.ok === false && <span className="w-full pl-6 text-xs text-pink">{source.error ?? 'Error'}</span>}
+            </li>
+          ))}
+          {sources !== null && sources.sources.length === 0 && (
+            <li className="px-5 py-6 text-center text-sm text-muted">
+              No hay fuentes. Añádelas en <code>sources.json</code>.
+            </li>
+          )}
+        </ul>
+        <p className="border-t border-line px-5 py-3 text-xs text-muted">
+          {sources?.telegram
+            ? 'Avisos por Telegram activados: te llega un mensaje cuando una oportunidad pasa a recomendada.'
+            : 'Telegram sin configurar: añade TELEGRAM_BOT_TOKEN en .env para recibir avisos.'}
+        </p>
+      </Card>
+    </Page>
   );
 }

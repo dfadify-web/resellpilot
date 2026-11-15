@@ -38,20 +38,23 @@ function createOverlay(command: CommandInfo): Overlay {
     <style>
       :host { all: initial; }
       .box { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; width: 320px; box-sizing: border-box;
-             background: #0a0a0b; color: #ecece7; border: 1px solid #27272b; border-top: 3px solid #ff4b1f;
-             font: 13px/1.4 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 14px 16px; }
-      .brand { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; color: #85858f; }
-      .brand b { color: #ff4b1f; }
-      .tag { float: right; background: #ff4b1f; color: #0a0a0b; font-weight: 700; font-size: 10px; padding: 1px 6px; letter-spacing: .1em; }
-      .title { margin-top: 8px; font-size: 16px; font-weight: 700; }
-      .detail { margin-top: 4px; color: #85858f; min-height: 36px; overflow-wrap: anywhere; }
-      .bar { margin-top: 10px; height: 4px; background: #27272b; }
-      .bar i { display: block; height: 4px; width: 0; background: #ff4b1f; }
-      .count { margin-top: 6px; font-variant-numeric: tabular-nums; color: #85858f; font-size: 11px; }
-      button { margin-top: 12px; width: 100%; padding: 10px; border: 0; cursor: pointer; background: #ff4b1f; color: #0a0a0b;
-               font: 700 15px/1 'Arial Narrow', 'Helvetica Neue', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
-      button.close { background: none; color: #ecece7; border: 1px solid #27272b; }
-      button:focus-visible { outline: 2px solid #ecece7; outline-offset: 2px; }
+             background: #fbf8f2; color: #1d2420; border: 1px solid #e3dacb; border-radius: 20px;
+             box-shadow: 0 24px 60px -24px rgba(29,36,32,.45);
+             font: 13px/1.45 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 16px 18px; }
+      .brand { font-weight: 700; font-size: 14px; letter-spacing: -.02em; color: #1d2420; }
+      .brand b { color: #1f5c46; }
+      .tag { float: right; background: #f8dee2; color: #c13b54; font-weight: 700; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
+      .title { margin-top: 10px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+      .detail { margin-top: 4px; color: #6b675d; min-height: 38px; overflow-wrap: anywhere; }
+      .bar { margin-top: 12px; height: 6px; background: #eee7da; border-radius: 999px; overflow: hidden; }
+      .bar i { display: block; height: 6px; width: 0; background: #1f5c46; border-radius: 999px; transition: width .4s; }
+      .count { margin-top: 6px; font-variant-numeric: tabular-nums; color: #6b675d; font-size: 12px; }
+      button { margin-top: 14px; width: 100%; height: 40px; border: 0; border-radius: 999px; cursor: pointer; background: #e5566f; color: #fff;
+               font: 700 14px/1 'Segoe UI', system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+      button:hover { background: #c13b54; }
+      button.close { background: #fbf8f2; color: #1d2420; border: 1px solid #cdc1ab; text-transform: none; letter-spacing: 0; }
+      button.close:hover { background: #eee7da; }
+      button:focus-visible { outline: 2px solid #1f5c46; outline-offset: 2px; }
     </style>
     <div class="box" role="status" aria-live="polite">
       <span class="tag" hidden>Simulación</span>

@@ -96,7 +96,7 @@ export function ItemDialog({ item, onClose, onSaved }: Props) {
   );
 
   return (
-    <Modal title={item ? 'Editar item' : 'Nuevo item'} onClose={onClose}>
+    <Modal title={item ? 'Editar item' : 'Nuevo item'} onClose={onClose} illustration="inventario">
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className={ui.label} htmlFor="item-name">
@@ -146,8 +146,9 @@ export function ItemDialog({ item, onClose, onSaved }: Props) {
           {money('Envío €', shipping, setShipping, 'item-shipping')}
           {money('Otros costes €', extra, setExtra, 'item-extra')}
         </div>
-        <p className="text-sm text-muted">
-          Coste total: <span className="text-paper">{eur(Number.isFinite(total) ? total : null)}</span>
+        <p className="flex items-center justify-between rounded-2xl bg-sunken px-4 py-3 text-sm text-muted">
+          Coste total
+          <span className={`${ui.num} text-xl text-ink`}>{eur(Number.isFinite(total) ? total : null)}</span>
         </p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -157,7 +158,7 @@ export function ItemDialog({ item, onClose, onSaved }: Props) {
             </label>
             <select
               id="item-stock"
-              className={ui.input}
+              className={ui.select}
               value={stock}
               onChange={(e) => setStock(e.target.value as StockState)}
             >
@@ -183,7 +184,7 @@ export function ItemDialog({ item, onClose, onSaved }: Props) {
         </div>
 
         {sold && (
-          <div className="grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 rounded-2xl border border-accent/30 bg-accent-soft/50 p-4 sm:grid-cols-2">
             <div>
               <label className={ui.label} htmlFor="item-sold-price">
                 Precio de venta €
