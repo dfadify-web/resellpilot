@@ -77,7 +77,6 @@ export function Oportunidades() {
   const [sources, setSources] = useState<SourcesResponse | null>(null);
   const [status, setStatus] = useState<DealStatus>('nuevo');
   const [onlyRecommended, setOnlyRecommended] = useState(false);
-  const [hideRisk, setHideRisk] = useState(false);
   const [maxPrice, setMaxPrice] = useState('');
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -138,7 +137,6 @@ export function Oportunidades() {
     (deal) =>
       deal.status === status &&
       (!onlyRecommended || deal.recommended) &&
-      (!hideRisk || deal.risk_flags.length === 0) &&
       (maxPriceNumber === null ||
         !Number.isFinite(maxPriceNumber) ||
         (deal.price !== null && deal.price <= maxPriceNumber)),
@@ -181,15 +179,6 @@ export function Oportunidades() {
             onChange={(event) => setOnlyRecommended(event.target.checked)}
           />
           Solo recomendadas <span className="text-paper">{recommendedCount}</span>
-        </label>
-        <label className="flex cursor-pointer items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-muted">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-[var(--color-accent)]"
-            checked={hideRisk}
-            onChange={(event) => setHideRisk(event.target.checked)}
-          />
-          Ocultar riesgo de marca
         </label>
         <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-muted">
           Precio máx. €
@@ -383,8 +372,7 @@ export function Oportunidades() {
 
       <p className="mt-3 max-w-prose text-xs text-muted">
         El precio de venta estimado se rellena solo desde Tendencias (marcado «auto») cuando el título coincide con
-        una búsqueda medida; si lo escribes tú, manda el tuyo, y si lo borras vuelve el automático. Las oportunidades cuyo título coincide
-        con <code>brand-blocklist.json</code> se marcan como riesgo de marca y nunca se recomiendan.
+        una búsqueda medida; si lo escribes tú, manda el tuyo, y si lo borras vuelve el automático.
       </p>
 
       <details className="mt-8 border border-line" open={failedSources > 0}>

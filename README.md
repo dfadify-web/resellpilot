@@ -65,7 +65,8 @@ código, vuelve a hacer el build y pulsa ↻ en `chrome://extensions`.
 - `sources.json`: canales públicos de Telegram (`telegram_public`, `https://t.me/s/<canal>`), webs de
   enlaces (`web`) y grupos privados (`telegram_private`, ver paso 5). Cada fuente lleva un `link_regex`
   con los enlaces que interesan. Se revisan al arrancar y cada 10 min.
-- `brand-blocklist.json`: marcas que **nunca** se recomiendan (riesgo de imitación). Edítala sin reiniciar.
+- `brand-blocklist.json`: vacía por defecto. Si quieres que ciertas marcas no se recomienden nunca, añádelas
+  aquí (por ejemplo `["Nike", "Adidas"]`); se aplica en la siguiente revisión, sin reiniciar.
 
 ## 5. Grupos privados de Telegram con Telethon (opcional)
 

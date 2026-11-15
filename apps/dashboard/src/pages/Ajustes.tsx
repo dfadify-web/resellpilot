@@ -174,7 +174,7 @@ export function Ajustes() {
                     />
                     <p className="mt-1 text-xs text-muted">
                       Además se miden solas las búsquedas derivadas de tus items sin vender y de las oportunidades
-                      sin riesgo de marca.
+                      pendientes.
                     </p>
                   </div>
                   <div>

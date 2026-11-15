@@ -15,7 +15,7 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 4. Prohibido implementar: bypass de Datadome/Cloudflare, proxies, rotación de IP o user-agent, navegador headless con sesión de Vinted, resolución de captchas, multicuenta, compra automática.
 5. Ante 403, 429, captcha o verificación: para todas las acciones sobre Vinted, avisa al usuario y no reintentes solo.
 6. Ninguna escritura en Vinted sin pulsación explícita del usuario y lista de confirmación previa.
-7. `brand-blocklist.json` editable: todo producto cuyo título coincida se marca `riesgo_marca` y se excluye de recomendaciones. Por defecto incluye marcas de ropa, calzado y accesorios habituales.
+7. `brand-blocklist.json` editable: todo producto cuyo título coincida se marca `riesgo_marca` y se excluye de recomendaciones. Por decisión del usuario (2026-11-15) la lista está vacía y el dashboard ya no muestra el filtro: no se excluye nada por marca. El mecanismo sigue en el código; añadir marcas al archivo lo reactiva.
 8. Los mensajes con plazo de entrega solo se envían para artículos con `stock = en_mano`.
 9. Los mensajes no incluyen enlaces externos ni datos de contacto.
 10. TypeScript estricto. pnpm. Vitest para lógica (scoring, parsers, límites). UI en español.
