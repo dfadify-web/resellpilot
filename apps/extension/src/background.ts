@@ -184,7 +184,8 @@ async function resume(): Promise<void> {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => void resume());
+// Al instalar o actualizar la extensión se borran los avisos viejos (p. ej. el de una versión anterior).
+chrome.runtime.onInstalled.addListener(() => void setState({ notice: '' }).then(resume));
 chrome.runtime.onStartup.addListener(() => void resume());
 
 chrome.alarms.onAlarm.addListener((alarm) => {
