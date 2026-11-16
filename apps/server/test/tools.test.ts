@@ -1,7 +1,8 @@
 import type { SyncPayload } from '@resellpilot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type Db } from '../src/db';
-import { applySync, inboxSince } from '../src/vinted/sync';
+import { collectQueries } from '../src/trends/service';
+import { applySync, inboxSince, listListings } from '../src/vinted/sync';
 
 let db: Db;
 beforeEach(() => {
@@ -144,6 +145,23 @@ describe('pedidos vendidos', () => {
       condition: 'Muy bueno',
       url: 'https://www.vinted.es/items/7001',
     });
+  });
+});
+
+describe('precio de mercado de mis anuncios', () => {
+  it('los anuncios en venta se miden solos y cada uno sale comparado con la media de Vinted', () => {
+    applySync(db, payload('activo', 24), new Date('2026-11-16T10:00:00Z'));
+    expect(collectQueries(db).get('termo acero')).toEqual(new Set(['anuncio']));
+    expect(listListings(db)[0]?.market).toBeNull();
+
+    db.prepare(
+      "INSERT INTO trends (query, avg_price, median_price, p25_price, listings_count, computed_at) VALUES ('termo acero', 20, 19, 16, 120, '2026-11-16T10:05:00.000Z')",
+    ).run();
+    expect(listListings(db)[0]?.market).toMatchObject({ query: 'termo acero', avg_price: 20, diff: 0.2, verdict: 'caro', suggested_price: 18 });
+
+    // Vendido: ya no se mide.
+    applySync(db, payload('vendido', 24), new Date('2026-11-16T11:00:00Z'));
+    expect(collectQueries(db).has('termo acero')).toBe(false);
   });
 });
 

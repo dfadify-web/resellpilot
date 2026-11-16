@@ -58,7 +58,7 @@ export interface IdAnchor {
   atMs: number;
 }
 
-export type TrendOrigin = 'semilla' | 'item' | 'deal' | 'busqueda';
+export type TrendOrigin = 'semilla' | 'item' | 'deal' | 'busqueda' | 'anuncio';
 
 export interface TrendView extends TrendStats {
   query: string;

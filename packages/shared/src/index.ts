@@ -16,3 +16,4 @@ export * from './listingText';
 export * from './reports';
 export * from './calculator';
 export * from './links';
+export * from './market';

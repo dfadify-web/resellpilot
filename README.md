@@ -94,7 +94,7 @@ entra con **tu** cuenta y solo lee mensajes (no escribe, no se une a nada):
 | Página | Qué hace |
 | --- | --- |
 | Resumen | Beneficio del mes, capital inmovilizado, rotación, últimas ventas, **informe semanal** (CSV) y vista previa del **resumen diario**. |
-| Anuncios | Tus anuncios de Vinted con favoritos, vistas y días publicados. Enlaza cada anuncio con su item. **Bajadas de precio sugeridas** para los stale (−5 % y, pasado el doble de `STALE_DAYS`, −10 %), con el margen que te queda. |
+| Anuncios | Tus anuncios de Vinted con favoritos, vistas y días publicados. Enlaza cada anuncio con su item. **Precio de mercado**: la media en Vinted de ese mismo artículo (medida sola) y si tu anuncio está caro, en precio o barato. **Bajadas de precio sugeridas** para los stale (−5 % y, pasado el doble de `STALE_DAYS`, −10 %), con el margen que te queda. |
 | Notificaciones | Favoritos, mensajes y ventas, con estado de leída propio. |
 | Oportunidades | Deals de tus fuentes ordenados por score, con beneficio y ROI estimados. «Comprado» crea el item en Inventario. |
 | Tendencias | Búsquedas de Vinted ordenadas por favoritos/día, con variación semanal y «Buscar en Hacoo». |

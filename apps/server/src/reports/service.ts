@@ -59,6 +59,7 @@ export function listRepricing(db: Db, now: Date = new Date()): RepricingRow[] {
       views: listing.views,
       item_name: listing.item_name,
       photo: listing.photo,
+      market: listing.market,
     });
   }
   return rows.sort((a, b) => b.days_listed - a.days_listed);

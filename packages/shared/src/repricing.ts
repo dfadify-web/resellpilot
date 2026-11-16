@@ -3,6 +3,7 @@
  * Solo sugiere: el precio lo cambia el usuario en Vinted.
  */
 import { toCents } from './calc';
+import type { ListingMarket } from './market';
 import { offerPrice } from './offers';
 import { daysListed, isStale } from './vinted';
 
@@ -66,4 +67,6 @@ export interface RepricingRow extends RepricingSuggestion {
   views: number;
   item_name: string | null;
   photo: string | null;
+  /** Precio medio en Vinted del mismo artículo, si se ha medido. */
+  market: ListingMarket | null;
 }

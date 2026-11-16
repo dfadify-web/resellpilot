@@ -3,6 +3,7 @@ import {
   daysListed,
   formatOfferPrice,
   isStale,
+  marketFor,
   normalizeForMatch,
   offerPrice,
   orderState,
@@ -19,6 +20,7 @@ import type { Db } from '../db';
 import { hasAction, logAction } from '../deals/repo';
 import { getRawSetting, getSettings, setRawSetting } from '../settings';
 import type { Notifier } from '../telegram';
+import { latestTrends } from '../trends/service';
 
 const KEY_ACCOUNT = 'VINTED_ACCOUNT';
 const KEY_LAST_SYNC = 'VINTED_LAST_SYNC';
@@ -434,12 +436,13 @@ export function forgetAccount(db: Db): void {
   db.prepare('DELETE FROM settings WHERE key IN (?, ?)').run(KEY_ACCOUNT, KEY_LAST_SYNC);
 }
 
-interface ListingRow extends Omit<ListingView, 'days_listed' | 'stale' | 'status'> {
+interface ListingRow extends Omit<ListingView, 'days_listed' | 'stale' | 'status' | 'market'> {
   status: string | null;
 }
 
 export function listListings(db: Db, now: Date = new Date()): ListingView[] {
   const staleDays = getSettings(db).STALE_DAYS;
+  const trends = latestTrends(db);
   const rows = db
     .prepare(
       `SELECT l.id, l.vinted_id, l.title, l.price, l.status, l.favs, l.views, l.listed_at, l.last_seen_at,
@@ -453,6 +456,7 @@ export function listListings(db: Db, now: Date = new Date()): ListingView[] {
     status: (row.status ?? 'activo') as ListingStatus,
     days_listed: daysListed(row.listed_at, now),
     stale: isStale(row, staleDays, now),
+    market: marketFor(row, trends),
   }));
 }
 

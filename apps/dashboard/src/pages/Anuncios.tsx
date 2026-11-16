@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { LinkSuggestionsDialog } from '../components/LinkSuggestionsDialog';
+import { MarketCell } from '../components/MarketCell';
 import { Badge, Chips, EmptyState, Notice, Page, PageHeader, StatStrip, TableCard, Thumb, type BadgeTone } from '../components/kit';
 import { CommandBox, OffersDialog, useOffers } from '../components/OffersPanel';
 import { RepricingPanel } from '../components/RepricingPanel';
@@ -20,11 +21,14 @@ import { VintedStatusBar } from '../components/VintedStatusBar';
 import { eur, shortDate } from '../format';
 import { ui, usePageTitle } from '../ui';
 
-type Filter = 'en_venta' | 'stale' | 'vendidos' | 'todos';
+type Filter = 'en_venta' | 'stale' | 'caros' | 'vendidos' | 'todos';
+
+const onSaleTest = (l: ListingView): boolean => l.status === 'activo' || l.status === 'reservado';
 
 const FILTERS: Record<Filter, { label: string; test: (listing: ListingView) => boolean }> = {
-  en_venta: { label: 'En venta', test: (l) => l.status === 'activo' || l.status === 'reservado' },
+  en_venta: { label: 'En venta', test: onSaleTest },
   stale: { label: 'Estancados', test: (l) => l.stale },
+  caros: { label: 'Caros vs Vinted', test: (l) => onSaleTest(l) && l.market?.verdict === 'caro' },
   vendidos: { label: 'Vendidos', test: (l) => l.status === 'vendido' },
   todos: { label: 'Todos', test: () => true },
 };
@@ -195,14 +199,16 @@ export function Anuncios() {
             </EmptyState>
           </div>
         ) : (
-          <TableCard minWidth={920}>
+          <TableCard minWidth={940}>
             <thead>
               <tr>
                 <th className={`${ui.th} min-w-[280px]`}>Anuncio</th>
                 <th className={`${ui.th} text-right`}>Precio</th>
+                <th className={`${ui.th} text-right`} title="Precio medio de ese artículo en Vinted">
+                  Mercado
+                </th>
                 <th className={`${ui.th} text-right`}>Favs</th>
                 <th className={`${ui.th} text-right`}>Sin ofertar</th>
-                <th className={`${ui.th} text-right`}>Vistas</th>
                 <th className={`${ui.th} text-right`}>Días</th>
                 <th className={ui.th}>Estado</th>
                 <th className={ui.th}>Item de inventario</th>
@@ -225,7 +231,13 @@ export function Anuncios() {
                           <ExternalLink size={13} aria-hidden="true" className="text-faint group-hover:text-accent" />
                         </a>
                         <span className="block text-xs text-muted">
-                          {[listing.brand, listing.size && `Talla ${listing.size}`, listing.condition, `publicado ${shortDate(listing.listed_at)}`]
+                          {[
+                            listing.brand,
+                            listing.size && `Talla ${listing.size}`,
+                            listing.condition,
+                            `${listing.views} ${listing.views === 1 ? 'vista' : 'vistas'}`,
+                            `publicado ${shortDate(listing.listed_at)}`,
+                          ]
                             .filter(Boolean)
                             .join(' · ')}
                         </span>
@@ -233,6 +245,9 @@ export function Anuncios() {
                     </div>
                   </td>
                   <td className={`${ui.td} text-right font-semibold`}>{eur(listing.price)}</td>
+                  <td className={`${ui.td} text-right`}>
+                    <MarketCell market={listing.market} pending={FILTERS.en_venta.test(listing)} />
+                  </td>
                   <td className={`${ui.td} text-right`}>
                     <span className="inline-flex items-center gap-1">
                       <Heart size={13} aria-hidden="true" className={listing.favs > 0 ? 'fill-pink-ink text-pink-ink' : 'text-faint'} />
@@ -247,7 +262,6 @@ export function Anuncios() {
                       onOffer={() => setDialog({ type: 'send_offers', listingId: listing.id })}
                     />
                   </td>
-                  <td className={`${ui.td} text-right text-muted`}>{listing.views}</td>
                   <td className={`${ui.td} text-right ${listing.stale ? 'font-semibold text-pink' : ''}`}>
                     {listing.days_listed ?? '—'}
                   </td>
@@ -291,7 +305,8 @@ export function Anuncios() {
         )}
         <p className="max-w-[80ch] text-xs leading-relaxed text-muted">
           Estancado = en venta más días que <code>STALE_DAYS</code>. La fecha de publicación es la de subida de la
-          primera foto.
+          primera foto. Mercado = precio medio en Vinted de la búsqueda que mejor encaja con el título (la extensión mide
+          sola las palabras clave de cada anuncio en venta); «caro» o «barato» si te separas más de un 15 % de la media.
         </p>
       </div>
 

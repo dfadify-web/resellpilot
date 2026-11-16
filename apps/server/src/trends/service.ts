@@ -88,6 +88,12 @@ export function collectQueries(db: Db): Map<string, Set<TrendOrigin>> {
     .all() as { name: string }[];
   for (const item of items) add(deriveQuery(item.name), 'item');
 
+  // Mis anuncios en venta: para saber si están caros o baratos frente al resto de Vinted.
+  const listings = db
+    .prepare("SELECT title FROM listings WHERE status IN ('activo', 'reservado') AND title IS NOT NULL ORDER BY listed_at DESC")
+    .all() as { title: string }[];
+  for (const listing of listings) add(deriveQuery(listing.title), 'anuncio');
+
   const deals = db
     .prepare(
       `SELECT title FROM deals WHERE status = 'nuevo' AND risk_flags = '[]' AND title IS NOT NULL
@@ -146,7 +152,7 @@ export function dueQueries(db: Db, now: Date = new Date()): string[] {
   const budget = Math.min(MAX_QUERIES_PER_SYNC, hourlyBudget(db, now));
   if (budget <= 0) return [];
 
-  const rank: Record<TrendOrigin, number> = { busqueda: 0, semilla: 1, item: 2, deal: 3 };
+  const rank: Record<TrendOrigin, number> = { busqueda: 0, semilla: 1, item: 2, anuncio: 2, deal: 3 };
   return [...collectQueries(db).entries()]
     .filter(([query]) => (measured.get(query) ?? '') <= fresh)
     .sort(([queryA, a], [queryB, b]) => {

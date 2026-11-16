@@ -8,7 +8,7 @@ import { Badge, Card, EmptyState, IconButton, Notice, Page, PageHeader, TableCar
 import { eur, num } from '../format';
 import { ui, usePageTitle } from '../ui';
 
-const ORIGIN_LABELS: Record<TrendOrigin, string> = { semilla: 'Semilla', item: 'Item', deal: 'Oportunidad', busqueda: 'Búsqueda' };
+const ORIGIN_LABELS: Record<TrendOrigin, string> = { semilla: 'Semilla', item: 'Item', deal: 'Oportunidad', busqueda: 'Búsqueda', anuncio: 'Anuncio' };
 const REFRESH_MS = 30_000;
 
 const ago = (iso: string | null): string => {

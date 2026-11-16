@@ -4,27 +4,60 @@ import { useState } from 'react';
 import { eur, signedEur, vintedEditUrl } from '../format';
 import { ui } from '../ui';
 import { Badge, Card, CardHeader, Thumb } from './kit';
+import { diffText, marketTitle } from './MarketCell';
 
 const priceText = (price: number): string => price.toFixed(2).replace('.', ',');
+
+/**
+ * Precio de mercado (media de Vinted −10 %) como alternativa a la bajada fija, solo si baja el precio
+ * actual, es distinto de la bajada sugerida y no deja el anuncio por debajo del coste.
+ */
+function marketAlternative(row: RepricingRow): number | null {
+  const price = row.market?.suggested_price;
+  if (price === undefined || row.market?.verdict === null || price >= row.price || price === row.new_price) return null;
+  if (row.total_cost !== null && price < row.total_cost) return null;
+  return price;
+}
 
 /**
  * Bajadas de precio sugeridas para los anuncios estancados. ResellPilot no cambia el precio:
  * copia el nuevo y abre la edición del anuncio en Vinted; la siguiente sync registra la bajada.
  */
 export function RepricingPanel({ rows }: { rows: RepricingRow[] }) {
-  const [copied, setCopied] = useState<number | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   if (rows.length === 0) return null;
 
-  async function open(row: RepricingRow) {
+  async function open(row: RepricingRow, price: number) {
+    const key = `${row.listing_id}:${price}`;
     try {
-      await navigator.clipboard.writeText(priceText(row.new_price));
-      setCopied(row.listing_id);
-      setTimeout(() => setCopied((current) => (current === row.listing_id ? null : current)), 4000);
+      await navigator.clipboard.writeText(priceText(price));
+      setCopied(key);
+      setTimeout(() => setCopied((current) => (current === key ? null : current)), 4000);
     } catch {
       // Sin portapapeles: el precio sugerido sigue a la vista.
     }
     window.open(vintedEditUrl(row.vinted_id), '_blank', 'noopener,noreferrer');
   }
+
+  const alternatives = new Map<number, number>();
+  for (const row of rows) {
+    const alternative = marketAlternative(row);
+    if (alternative !== null) alternatives.set(row.listing_id, alternative);
+  }
+
+  const button = (row: RepricingRow, price: number, label: string, primary: boolean) => (
+    <button type="button" className={`${primary ? ui.secondary : ui.ghost} h-9`} onClick={() => void open(row, price)}>
+      {copied === `${row.listing_id}:${price}` ? (
+        <>
+          <Check size={15} aria-hidden="true" /> Copiado {priceText(price)} €
+        </>
+      ) : (
+        <>
+          <ExternalLink size={15} aria-hidden="true" /> {label}
+        </>
+      )}
+    </button>
+  );
 
   return (
     <Card as="section">
@@ -64,17 +97,17 @@ export function RepricingPanel({ rows }: { rows: RepricingRow[] }) {
                 {row.below_cost && ' · por debajo del coste'}
               </p>
             </div>
-            <button type="button" className={`${ui.secondary} h-9 self-start`} onClick={() => void open(row)}>
-              {copied === row.listing_id ? (
-                <>
-                  <Check size={15} aria-hidden="true" /> Copiado {priceText(row.new_price)} €
-                </>
-              ) : (
-                <>
-                  <ExternalLink size={15} aria-hidden="true" /> Editar en Vinted
-                </>
-              )}
-            </button>
+            {row.market && (
+              <p className="text-xs text-muted" title={marketTitle(row.market)}>
+                Media en Vinted: <span className="font-semibold text-ink">{eur(row.market.avg_price)}</span>
+                {row.market.diff !== null && ` · tu precio ${diffText(row.market.diff)}`}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {button(row, row.new_price, 'Editar en Vinted', true)}
+              {alternatives.get(row.listing_id) !== undefined &&
+                button(row, alternatives.get(row.listing_id) as number, `Precio de mercado ${eur(alternatives.get(row.listing_id) ?? null)}`, false)}
+            </div>
           </li>
         ))}
       </ul>

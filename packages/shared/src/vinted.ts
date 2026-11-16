@@ -2,6 +2,7 @@
  * Lectura de la cuenta de Vinted (Fase 3): tipos del snapshot que la extensión envía al server
  * y normalizadores puros de las respuestas de vinted.es. Ver `docs/vinted-endpoints.md`.
  */
+import type { ListingMarket } from './market';
 
 const DAY_MS = 86_400_000;
 
@@ -147,6 +148,8 @@ export interface ListingView {
   size: string | null;
   condition: string | null;
   url: string | null;
+  /** Precio medio en Vinted del mismo artículo y cómo queda el anuncio frente a él. */
+  market: ListingMarket | null;
 }
 
 /** Pedido vendido tal como lo devuelve la API del dashboard. */
