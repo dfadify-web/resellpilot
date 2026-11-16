@@ -20,7 +20,7 @@ import { toView, type ScoringContext } from '../deals/service';
 import { listItems } from '../items/repo';
 import { getSettings } from '../settings';
 import type { Notifier, NotifyResult } from '../telegram';
-import { listListings } from '../vinted/sync';
+import { listListings, listOrders } from '../vinted/sync';
 
 const DAY_MS = 86_400_000;
 const ACTION_DAILY = 'daily_summary';
@@ -125,9 +125,20 @@ export function dailySummaryData(db: Db, context: ScoringContext, now: Date = ne
     )
     .all(since, until) as { title: string; count: number }[];
 
-  const stale = listListings(db, now)
-    .filter((listing) => listing.stale)
-    .sort((a, b) => (b.days_listed ?? 0) - (a.days_listed ?? 0));
+  const listings = listListings(db, now);
+  const stale = listings.filter((listing) => listing.stale).sort((a, b) => (b.days_listed ?? 0) - (a.days_listed ?? 0));
+  const expensive = listings
+    .filter((listing) => (listing.status === 'activo' || listing.status === 'reservado') && listing.market?.verdict === 'caro')
+    .map((listing) => ({
+      title: listing.title,
+      price: listing.price ?? 0,
+      avg_price: listing.market?.avg_price ?? 0,
+      diff: listing.market?.diff ?? 0,
+    }))
+    .sort((a, b) => b.diff - a.diff);
+  const toShip = listOrders(db)
+    .filter((order) => order.state === 'enviar')
+    .map((order) => ({ title: order.title, price: order.price }));
 
   const deals = listDeals(db, 'nuevo')
     .map((deal) => toView(deal, context.settings))
@@ -148,6 +159,8 @@ export function dailySummaryData(db: Db, context: ScoringContext, now: Date = ne
       roi: deal.roi,
       url: deal.url,
     })),
+    to_ship: toShip,
+    expensive,
   };
 }
 

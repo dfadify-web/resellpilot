@@ -115,6 +115,10 @@ export interface DailySummaryData {
   stale: { title: string; days: number }[];
   /** Mejores oportunidades recomendadas. */
   deals: { title: string; est_profit: number | null; roi: number | null; url: string }[];
+  /** Pedidos vendidos pendientes de enviar. */
+  to_ship?: { title: string; price: number | null }[];
+  /** Anuncios en venta bastante más caros que la media de Vinted, del más caro al menos. */
+  expensive?: { title: string; price: number; avg_price: number; diff: number }[];
 }
 
 const MAX_LINES = 3;
@@ -125,6 +129,14 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 export function renderDailySummary(data: DailySummaryData): string {
   const day = data.now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
   const lines: string[] = [`☀️ ResellPilot · ${day}`, ''];
+
+  const toShip = data.to_ship ?? [];
+  if (toShip.length > 0) {
+    lines.push(`📦 Por enviar: ${toShip.length}`);
+    for (const order of toShip.slice(0, MAX_LINES)) lines.push(`  · ${order.title}${order.price === null ? '' : ` (${eur(order.price)})`}`);
+    if (toShip.length > MAX_LINES) lines.push(`  · …y ${toShip.length - MAX_LINES} más`);
+    lines.push('');
+  }
 
   lines.push(`💰 Ventas (24 h): ${data.sales.length}`);
   for (const sale of data.sales.slice(0, MAX_LINES)) lines.push(`  · ${sale.replace(/^Vendido:\s*/i, '')}`);
@@ -139,6 +151,14 @@ export function renderDailySummary(data: DailySummaryData): string {
   lines.push('', `🕒 Anuncios stale: ${data.stale_count}`);
   for (const listing of data.stale.slice(0, MAX_LINES)) lines.push(`  · ${listing.title} (${listing.days} días)`);
   if (data.stale_count > 0) lines.push('  Mira las bajadas sugeridas en Anuncios.');
+
+  const expensive = data.expensive ?? [];
+  if (expensive.length > 0) {
+    lines.push('', `🏷️ Caros frente a Vinted: ${expensive.length}`);
+    for (const listing of expensive.slice(0, MAX_LINES)) {
+      lines.push(`  · ${listing.title}: ${eur(listing.price)}, media ${eur(listing.avg_price)} (+${Math.round(listing.diff * 100)} %)`);
+    }
+  }
 
   lines.push('', `🟢 Mejores oportunidades: ${data.deals.length === 0 ? 'ninguna recomendada ahora' : ''}`.trimEnd());
   for (const deal of data.deals.slice(0, MAX_LINES)) {

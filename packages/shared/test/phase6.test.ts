@@ -196,6 +196,20 @@ describe('resumen diario', () => {
     expect(text).toContain('🟢 Mejores oportunidades: ninguna recomendada ahora');
     expect(text).not.toContain('Inventario:');
     expect(text).not.toContain('bajadas sugeridas');
+    expect(text).not.toContain('Por enviar');
+    expect(text).not.toContain('Caros frente a Vinted');
+  });
+
+  it('empieza por lo que hay que enviar y avisa de los anuncios caros frente a Vinted', () => {
+    const text = renderDailySummary({
+      ...data,
+      to_ship: [{ title: 'Zapatillas', price: 42 }],
+      expensive: [{ title: 'Termo acero', price: 24, avg_price: 19.5, diff: 0.231 }],
+    });
+    expect(text.split('\n')[2]).toBe('📦 Por enviar: 1');
+    expect(text).toContain('· Zapatillas (42,00 €)');
+    expect(text).toContain('🏷️ Caros frente a Vinted: 1');
+    expect(text).toContain('· Termo acero: 24,00 €, media 19,50 € (+23 %)');
   });
 
   it('la hora del resumen son las 08:30', () => {
