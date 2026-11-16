@@ -43,10 +43,14 @@ describe('db', () => {
     ]);
     expect(columns(db, 'listings')).toEqual([
       'id', 'vinted_id', 'title', 'price', 'status', 'favs', 'views', 'listed_at', 'last_seen_at',
-      'item_id',
+      'item_id', 'photo', 'brand', 'size', 'condition', 'url',
     ]);
     expect(columns(db, 'notifications')).toEqual([
-      'id', 'vinted_id', 'type', 'text', 'listing_id', 'read', 'created_at',
+      'id', 'vinted_id', 'type', 'text', 'listing_id', 'read', 'created_at', 'photo', 'link',
+    ]);
+    expect(columns(db, 'orders')).toEqual([
+      'id', 'vinted_id', 'conversation_id', 'title', 'price', 'status_text', 'state', 'at', 'photo',
+      'listing_id', 'first_seen_at', 'updated_at',
     ]);
     expect(columns(db, 'favoriters')).toEqual([
       'id', 'listing_id', 'vinted_user_id', 'username', 'seen_at', 'offered_at', 'has_conversation',

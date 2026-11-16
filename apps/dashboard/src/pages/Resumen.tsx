@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { api, describeError, type SummaryResponse } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { Badge, Card, CardHeader, EmptyState, Kpi, Page, PageHeader } from '../components/kit';
+import { OrdersCard, ToShipBanner, useOrders } from '../components/OrdersPanel';
 import { ReportsPanel } from '../components/ReportsPanel';
 import { eur, monthName, num, pct, shortDate, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
@@ -15,6 +16,7 @@ export function Resumen() {
   usePageTitle('Resumen');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
+  const orders = useOrders() ?? [];
 
   useEffect(() => {
     let alive = true;
@@ -48,6 +50,7 @@ export function Resumen() {
         illustration="dinero"
       />
 
+      <ToShipBanner orders={orders} />
       <ErrorNote problem={problem} />
       {!summary && !problem && <p className="text-sm text-muted">Cargando…</p>}
 
@@ -129,6 +132,7 @@ export function Resumen() {
             </Card>
           </div>
 
+          <OrdersCard orders={orders} />
           <ReportsPanel />
         </>
       )}

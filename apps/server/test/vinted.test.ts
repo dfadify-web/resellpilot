@@ -176,11 +176,16 @@ describe('sync de la cuenta', () => {
       listing_vinted_id: null,
       user_id: '777',
       username: 'luis',
-      at: '2026-11-10T16:00:00.000Z',
+      // Avisos solo de lo ocurrido desde la última sync: fechas de ahora.
+      at: new Date().toISOString(),
       read: false,
     };
     const next = snapshot({
-      events: [favourite(), favourite({ vinted_id: 'n:aaa-2', user_id: '666', username: 'eva', text: 'eva ha marcado como favorito tu artículo "Camisa de lino".' }), message],
+      events: [
+        favourite(),
+        favourite({ vinted_id: 'n:aaa-2', user_id: '666', username: 'eva', text: 'eva ha marcado como favorito tu artículo "Camisa de lino".', at: new Date().toISOString() }),
+        message,
+      ],
     });
     expect((await sync(next)).json()).toMatchObject({ new_events: 2 });
     expect(sent).toEqual([
@@ -215,7 +220,9 @@ describe('sync de la cuenta', () => {
 
   it('agrupa los avisos si llegan muchos de golpe', async () => {
     await sync(snapshot());
-    const many = Array.from({ length: 11 }, (_, i) => favourite({ vinted_id: `n:lote-${i}`, user_id: String(1000 + i), username: `u${i}` }));
+    const many = Array.from({ length: 11 }, (_, i) =>
+      favourite({ vinted_id: `n:lote-${i}`, user_id: String(1000 + i), username: `u${i}`, at: new Date().toISOString() }),
+    );
     await sync(snapshot({ events: many }));
     expect(sent).toHaveLength(9);
     expect(sent[8]).toBe('…y 3 novedades más en Vinted. Míralas en Notificaciones.');
@@ -224,7 +231,7 @@ describe('sync de la cuenta', () => {
   it('si Telegram falla, la sync se guarda y devuelve un aviso', async () => {
     await sync(snapshot());
     telegramOk = false;
-    const res = await sync(snapshot({ events: [favourite({ vinted_id: 'n:ccc', user_id: '888' })] }));
+    const res = await sync(snapshot({ events: [favourite({ vinted_id: 'n:ccc', user_id: '888', at: new Date().toISOString() })] }));
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ new_events: 1, warning: 'fallo simulado' });
     expect(await notifications()).toHaveLength(2);

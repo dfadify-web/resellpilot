@@ -65,4 +65,5 @@ export interface RepricingRow extends RepricingSuggestion {
   favs: number;
   views: number;
   item_name: string | null;
+  photo: string | null;
 }

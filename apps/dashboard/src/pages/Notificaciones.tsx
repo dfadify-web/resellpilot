@@ -5,11 +5,11 @@ import {
   type NotificationView,
   type VintedStatus,
 } from '@resellpilot/shared';
-import { BadgeEuro, Bell, CheckCheck, Heart, MessageCircle, type LucideIcon } from 'lucide-react';
+import { BadgeEuro, Bell, CheckCheck, ExternalLink, Heart, MessageCircle, Package, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
-import { Chips, EmptyState, Page, PageHeader } from '../components/kit';
+import { Chips, EmptyState, Page, PageHeader, Thumb } from '../components/kit';
 import { VintedStatusBar } from '../components/VintedStatusBar';
 import { ui, usePageTitle } from '../ui';
 
@@ -21,6 +21,7 @@ const TYPE_STYLE: Record<NotificationType, { icon: LucideIcon; className: string
   favorito: { icon: Heart, className: 'bg-pink-soft text-pink' },
   mensaje: { icon: MessageCircle, className: 'bg-accent-soft text-accent' },
   venta: { icon: BadgeEuro, className: 'bg-accent text-on-accent' },
+  pedido: { icon: Package, className: 'bg-pink-ink text-white' },
   otro: { icon: Bell, className: 'bg-sunken text-muted' },
 };
 
@@ -130,11 +131,20 @@ export function Notificaciones() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className={row.read ? 'text-muted' : 'font-semibold'}>{row.text ?? '—'}</p>
-                      <p className="mt-0.5 text-xs text-muted">
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted">
                         {when(row.created_at)}
                         {row.listing_title && <> · {row.listing_title}</>}
+                        {row.link && (
+                          <>
+                            {' · '}
+                            <a href={row.link} target="_blank" rel="noreferrer noopener" className={`${ui.link} inline-flex items-center gap-1 text-xs`}>
+                              Abrir en Vinted <ExternalLink size={11} aria-hidden="true" />
+                            </a>
+                          </>
+                        )}
                       </p>
                     </div>
+                    {row.photo && <Thumb src={row.photo} size={40} />}
                     {!row.read && (
                       <div className="flex shrink-0 items-center gap-3">
                         <span className="h-2 w-2 rounded-full bg-pink-ink" role="img" aria-label="Sin leer" />

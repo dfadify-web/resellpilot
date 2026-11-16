@@ -61,6 +61,8 @@ export interface CollectRequest {
   /** Segundos mínimos entre lecturas (READ_MIN_INTERVAL_S). */
   intervalS: number;
   lease: string;
+  /** Leer la bandeja solo hasta esta fecha (ISO). `null` = entera. */
+  inboxSince: string | null;
 }
 
 /** Content script → background. */

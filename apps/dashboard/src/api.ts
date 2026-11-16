@@ -6,6 +6,7 @@ import type {
   ItemInput,
   ListingView,
   NotificationView,
+  OrderView,
   VintedStatus,
   ItemWithCalc,
   RepricingRow,
@@ -150,6 +151,7 @@ export const api = {
   linkListing: (id: number, itemId: number | null) =>
     request<ListingView>(`/api/listings/${id}`, json('PATCH', { item_id: itemId })),
   listNotifications: () => request<NotificationView[]>('/api/notifications'),
+  listOrders: () => request<OrderView[]>('/api/orders'),
   markNotificationsRead: (ids?: number[]) =>
     request<{ updated: number }>('/api/notifications/read', json('POST', ids ? { ids } : {})),
   trends: () => request<TrendsResponse>('/api/trends'),

@@ -51,6 +51,8 @@ Mis anuncios, incluidos vendidos, ocultos y borradores.
 - **Fecha de publicación**: no viene como campo. Se usa el `timestamp` más antiguo de las fotos
   (momento de subida), que coincide con la publicación salvo que se cambien las fotos después.
 - Se piden todas las páginas (máx. 20). Un anuncio que ya no aparece pasa a «Ya no está».
+- También se guardan: miniatura (`photos[].thumbnails`, `thumb310x430`; la foto `is_main`), `brand`, `size`,
+  `status` (estado de uso) y `url`.
 
 ### `GET /web/api/notifications/notifications?page=1&per_page=20`
 Notificaciones de la campana. (`/api/v2/notifications` ya no existe: devuelve 404.)
@@ -71,7 +73,15 @@ Notificaciones de la campana. (`/api/v2/notifications` ya no existe: devuelve 40
 - **Efecto secundario**: pedir esta lista marca las notificaciones como leídas en Vinted, igual que
   abrir la campana. Por eso el estado «leída» de ResellPilot es propio y solo se toma de Vinted la
   primera vez que se ve cada notificación.
-- Solo se leen las 2 primeras páginas en cada sync.
+- **Vinted solo conserva unos días de notificaciones** (comprobado el 2026-11-16: la página oficial de
+  notificaciones mostraba 3). `pagination.total_entries` es un contador viejo (decía 63) y las páginas
+  siguientes llegan vacías: se leen hasta 3 páginas y se para en cuanto una no viene llena. Lo que no se lee
+  a tiempo se pierde, por eso importa sincronizar con regularidad.
+- La web usa ahora `https://api.vinted.es/inbox-notifications/v1/notifications?page=&per_page=`, que devuelve
+  los mismos datos; la extensión sigue con la ruta de `www.vinted.es`.
+- Campos usados también: `small_photo_url` (foto) y `link` (relativo → `https://www.vinted.es…`; los de la
+  app, `vintedfr://…`, se descartan). Los textos pueden traer entidades HTML (`&#39;`): se decodifican.
+- `entry_type` 300: «X artículos favoritos … se han vendido» (anuncios ajenos que te gustaban) → `otro`.
 
 ### `GET /api/v2/inbox?page=1&per_page=20`
 Lista de conversaciones (solo el resumen; no se abre ninguna, porque eso la marcaría como leída).
@@ -86,10 +96,31 @@ Lista de conversaciones (solo el resumen; no se abre ninguna, porque eso la marc
   mensaje a la misma conversación, es un evento nuevo.
 - `opposite_user.id` marca `favoriters.has_conversation` (lo usará la Fase 5 para no escribir a
   quien ya tiene conversación).
-- El resumen no dice a qué anuncio se refiere la conversación.
+- El resumen no dice a qué anuncio se refiere la conversación (trae `item_photos`, que se usa como foto).
+- **Paginación «por cursor»**: cada página anuncia una más (`total_pages` = página actual + 1) hasta la última
+  (comprobado: 131 conversaciones en 7 páginas mientras la primera decía «40 en 2»). Se sigue hasta una página
+  no llena (máx. 10). Entera la primera vez y cada 6 h; entre medias, hasta llegar a lo anterior a la última
+  sync (`inbox_since` en `/api/vinted/config`).
 
-### Ventas
-No hay un endpoint de ventas: se detectan cuando un anuncio conocido pasa a `vendido` entre dos syncs.
+### `GET /api/v2/my_orders?type=sold&status=all&per_page=20&page=1`
+Pedidos vendidos (comprobado el 2026-11-16). Es el registro fiable de las ventas:
+
+```
+{ my_orders: [ { transaction_id: 123, conversation_id: "uuid", title, price: { amount: "42.00" },
+                 status: "Etiqueta de envío enviada al vendedor.", date: "2026-11-16T07:44:00Z",
+                 photo: { url, thumbnails: [...] }, transaction_user_status: "needs_action" } ],
+  pagination: { … } }
+```
+
+- `transaction_user_status`: `needs_action` (hay que enviar) · `completed` · `failed` (cancelado) · otros = en curso.
+- `price` es el precio final (con oferta o lote), no el del anuncio.
+- No trae el id del anuncio: se enlaza por título. `conversation_id` es un UUID y
+  `https://www.vinted.es/inbox/{conversation_id}` abre la conversación del pedido (comprobado).
+- `GET /api/v2/transactions?type=sold` ya no existe (404).
+
+### Ventas por anuncio
+Si la extensión no envía pedidos (versión antigua), una venta se detecta cuando un anuncio conocido pasa a
+`vendido` entre dos syncs.
 
 ### Bajadas de precio hechas a mano
 Si un anuncio activo conocido llega en una sync con un precio menor que el guardado, se anota en

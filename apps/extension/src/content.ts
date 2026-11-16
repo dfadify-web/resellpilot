@@ -9,6 +9,7 @@ import {
   classifyResponse,
   parseInboxPage,
   parseNotificationsPage,
+  parseOrdersPage,
   parseWardrobePage,
   toId,
   type Page,
@@ -16,6 +17,7 @@ import {
   type RawSearchResult,
   type SyncEvent,
   type SyncListing,
+  type SyncOrder,
   type SyncPayload,
 } from '@resellpilot/shared';
 import { runCommand } from './commands';
@@ -36,8 +38,18 @@ class CancelledError extends Error {}
 
 const WARDROBE_PER_PAGE = 50;
 const WARDROBE_MAX_PAGES = 20;
-/** Solo las notificaciones recientes: las antiguas ya se guardaron en syncs anteriores. */
-const NOTIFICATION_PAGES = 2;
+/**
+ * Vinted solo conserva unos días de notificaciones (su `total_entries` es un contador viejo: las páginas
+ * siguientes llegan vacías). Se leen hasta 3 páginas y se para en cuanto una no está llena.
+ */
+const NOTIFICATION_PAGES = 3;
+const NOTIFICATIONS_PER_PAGE = 20;
+/** Todas las conversaciones: hacen falta para no ofertar a quien ya tiene una abierta. */
+const INBOX_PAGES = 10;
+const INBOX_PER_PAGE = 20;
+/** Pedidos vendidos: los más recientes primero. */
+const ORDER_PAGES = 3;
+const ORDERS_PER_PAGE = 20;
 const TIMEOUT_MS = 30_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -111,7 +123,7 @@ function createReader(intervalS: number, lease: string) {
 
 // ───────────────────────── cuenta (Fase 3) ─────────────────────────
 
-async function collect({ intervalS, lease }: CollectRequest): Promise<SyncPayload> {
+async function collect({ intervalS, lease, inboxSince }: CollectRequest): Promise<SyncPayload> {
   const readJson = createReader(intervalS, lease).json;
 
   const current = (await readJson('/api/v2/users/current')) as { user?: { id?: unknown } } | null;
@@ -135,17 +147,41 @@ async function collect({ intervalS, lease }: CollectRequest): Promise<SyncPayloa
   // Notificaciones recientes. Aviso: leerlas las marca como leídas en Vinted (igual que abrir la campana).
   const events: SyncEvent[] = [];
   for (let page = 1; page <= NOTIFICATION_PAGES; page++) {
-    const result = parseNotificationsPage(await readJson(`/web/api/notifications/notifications?page=${page}&per_page=20`));
+    const result = parseNotificationsPage(
+      await readJson(`/web/api/notifications/notifications?page=${page}&per_page=${NOTIFICATIONS_PER_PAGE}`),
+    );
     events.push(...result.rows);
-    if (page >= result.totalPages) break;
+    if (page >= result.totalPages || result.rows.length < NOTIFICATIONS_PER_PAGE) break;
   }
 
-  // Bandeja: solo la lista (no se abre ninguna conversación).
-  const inbox = parseInboxPage(await readJson('/api/v2/inbox?page=1&per_page=20'));
+  // Bandeja: la lista de conversaciones (no se abre ninguna). Va de la más reciente a la más antigua:
+  // entera cada pocas horas y, entre medias, hasta llegar a lo ya visto. Su paginación va «por cursor»:
+  // cada página anuncia una más hasta la última.
   const conversationUserIds = new Set<string>();
-  for (const conversation of inbox.rows) {
-    if (conversation.user_id) conversationUserIds.add(conversation.user_id);
-    if (conversation.event) events.push(conversation.event);
+  const sinceMs = inboxSince ? Date.parse(inboxSince) : null;
+  let inboxComplete = false;
+  for (let page = 1; page <= INBOX_PAGES; page++) {
+    const inbox = parseInboxPage(await readJson(`/api/v2/inbox?page=${page}&per_page=${INBOX_PER_PAGE}`));
+    for (const conversation of inbox.rows) {
+      if (conversation.user_id) conversationUserIds.add(conversation.user_id);
+      if (conversation.event) events.push(conversation.event);
+    }
+    if (page >= inbox.totalPages || inbox.rows.length < INBOX_PER_PAGE) {
+      inboxComplete = true;
+      break;
+    }
+    const oldest = inbox.rows.at(-1)?.updated_at ?? null;
+    if (sinceMs !== null && oldest !== null && Date.parse(oldest) < sinceMs) break;
+  }
+
+  // Pedidos vendidos: precio real de cada venta y si hay que enviar algo.
+  const orders: SyncOrder[] = [];
+  for (let page = 1; page <= ORDER_PAGES; page++) {
+    const result = parseOrdersPage(
+      await readJson(`/api/v2/my_orders?type=sold&status=all&per_page=${ORDERS_PER_PAGE}&page=${page}`),
+    );
+    orders.push(...result.rows);
+    if (page >= result.totalPages || result.rows.length < ORDERS_PER_PAGE) break;
   }
 
   const unique = <T, K>(rows: T[], key: (row: T) => K): T[] => [...new Map(rows.map((row) => [key(row), row])).values()];
@@ -155,6 +191,8 @@ async function collect({ intervalS, lease }: CollectRequest): Promise<SyncPayloa
     listings_complete: listingsComplete,
     events: unique(events, (row) => row.vinted_id),
     conversation_user_ids: [...conversationUserIds],
+    orders: unique(orders, (row) => row.vinted_id),
+    inbox_complete: inboxComplete,
   };
 }
 

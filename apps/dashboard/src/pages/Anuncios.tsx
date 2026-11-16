@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { LinkSuggestionsDialog } from '../components/LinkSuggestionsDialog';
-import { Badge, Chips, EmptyState, Notice, Page, PageHeader, StatStrip, TableCard, type BadgeTone } from '../components/kit';
+import { Badge, Chips, EmptyState, Notice, Page, PageHeader, StatStrip, TableCard, Thumb, type BadgeTone } from '../components/kit';
 import { CommandBox, OffersDialog, useOffers } from '../components/OffersPanel';
 import { RepricingPanel } from '../components/RepricingPanel';
 import { VintedStatusBar } from '../components/VintedStatusBar';
@@ -198,7 +198,7 @@ export function Anuncios() {
           <TableCard minWidth={920}>
             <thead>
               <tr>
-                <th className={`${ui.th} min-w-[240px]`}>Anuncio</th>
+                <th className={`${ui.th} min-w-[280px]`}>Anuncio</th>
                 <th className={`${ui.th} text-right`}>Precio</th>
                 <th className={`${ui.th} text-right`}>Favs</th>
                 <th className={`${ui.th} text-right`}>Sin ofertar</th>
@@ -212,16 +212,25 @@ export function Anuncios() {
               {visible.map((listing) => (
                 <tr key={listing.id} className={ui.tr}>
                   <td className={ui.td}>
-                    <a
-                      href={`https://www.vinted.es/items/${listing.vinted_id}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="group inline-flex items-center gap-1.5 font-semibold hover:text-accent"
-                    >
-                      {listing.title}
-                      <ExternalLink size={13} aria-hidden="true" className="text-faint group-hover:text-accent" />
-                    </a>
-                    <span className="block text-xs text-muted">Publicado {shortDate(listing.listed_at)}</span>
+                    <div className="flex items-center gap-3">
+                      <Thumb src={listing.photo} />
+                      <div className="min-w-0">
+                        <a
+                          href={listing.url ?? `https://www.vinted.es/items/${listing.vinted_id}`}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="group inline-flex items-center gap-1.5 font-semibold hover:text-accent"
+                        >
+                          {listing.title}
+                          <ExternalLink size={13} aria-hidden="true" className="text-faint group-hover:text-accent" />
+                        </a>
+                        <span className="block text-xs text-muted">
+                          {[listing.brand, listing.size && `Talla ${listing.size}`, listing.condition, `publicado ${shortDate(listing.listed_at)}`]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td className={`${ui.td} text-right font-semibold`}>{eur(listing.price)}</td>
                   <td className={`${ui.td} text-right`}>

@@ -3,7 +3,7 @@ import { defineManifest } from '@crxjs/vite-plugin';
 export default defineManifest({
   manifest_version: 3,
   name: 'ResellPilot',
-  version: '0.8.0',
+  version: '0.9.0',
   description: 'Lee tus anuncios, notificaciones y tendencias de vinted.es y los envía a tu ResellPilot local.',
   // Clave pública fija: hace que el ID de la extensión sea siempre kjgfhjhbgcpdodeknaofoemgeccffgok,
   // que es el único origen al que el server permite enviar datos (ver DEFAULT_EXTENSION_ID).

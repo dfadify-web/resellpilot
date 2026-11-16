@@ -84,12 +84,12 @@ async function sync(): Promise<void> {
     }
 
     // Primero el server: si no está, no se hace ni una petición a Vinted.
-    const config = await api<{ read_min_interval_s: number; trend_queries?: string[] }>('/api/vinted/config');
+    const config = await api<{ read_min_interval_s: number; trend_queries?: string[]; inbox_since?: string | null }>('/api/vinted/config');
     await setState({ notice: 'Leyendo tu cuenta de Vinted…', lease });
 
     let answer: CollectResponse | undefined;
     try {
-      const request: CollectRequest = { kind: 'collect', intervalS: config.read_min_interval_s, lease };
+      const request: CollectRequest = { kind: 'collect', intervalS: config.read_min_interval_s, lease, inboxSince: config.inbox_since ?? null };
       answer = await chrome.tabs.sendMessage(tab.id, request);
     } catch {
       await setState({ notice: 'Recarga la pestaña de vinted.es (F5) y pulsa «Sincronizar ahora».' });

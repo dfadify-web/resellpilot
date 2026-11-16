@@ -8,6 +8,9 @@ import {
   normalizeConversation,
   normalizeListing,
   normalizeNotification,
+  normalizeOrder,
+  orderState,
+  parseOrdersPage,
   pickCommandTab,
   parseInboxPage,
   parseNotificationsPage,
@@ -67,6 +70,48 @@ describe('armario', () => {
       favs: 4,
       views: 87,
       listed_at: new Date(1793000000 * 1000).toISOString(),
+      photo: null,
+      brand: null,
+      size: null,
+      condition: 'Muy bueno',
+      url: null,
+    });
+  });
+
+  it('extrae foto, marca, talla, estado de uso y enlace', () => {
+    const listing = normalizeListing(
+      rawItem({
+        brand: 'Nike',
+        size: 'S',
+        status: 'Nuevo con etiquetas',
+        url: 'https://www.vinted.es/items/7001234567-zapatillas',
+        photos: [
+          { id: 1, is_main: false, url: 'https://images1.vinted.net/a.jpg', high_resolution: { timestamp: 1793000500 } },
+          {
+            id: 2,
+            is_main: true,
+            url: 'https://images1.vinted.net/b.jpg',
+            high_resolution: { timestamp: 1793000000 },
+            thumbnails: [
+              { type: 'thumb70x100', url: 'https://images1.vinted.net/b70.jpg' },
+              { type: 'thumb310x430', url: 'https://images1.vinted.net/b310.jpg' },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(listing).toMatchObject({
+      photo: 'https://images1.vinted.net/b310.jpg',
+      brand: 'Nike',
+      size: 'S',
+      condition: 'Nuevo con etiquetas',
+      url: 'https://www.vinted.es/items/7001234567-zapatillas',
+      listed_at: new Date(1793000000 * 1000).toISOString(),
+    });
+    // Rutas relativas se completan; fotos que no son https se descartan.
+    expect(normalizeListing(rawItem({ path: '/items/1-x', photos: [{ url: 'javascript:alert(1)' }] }))).toMatchObject({
+      url: 'https://www.vinted.es/items/1-x',
+      photo: null,
     });
   });
 
@@ -115,6 +160,25 @@ describe('notificaciones', () => {
       username: 'ana_23',
       at: '2026-11-10T15:46:12.000Z',
       read: false,
+      photo: null,
+      link: 'https://www.vinted.es/items/7001234567/want_it/new?offering_id=555',
+    });
+  });
+
+  it('decodifica entidades HTML, guarda la foto y descarta enlaces de la app', () => {
+    const other = normalizeNotification(
+      rawNotification({
+        entry_type: 300,
+        body: 'marta artículos favoritos Jeans Levi&#39;s 501 se han vendido.',
+        link: 'vintedfr://favorites?portal=fr',
+        small_photo_url: 'https://images1.vinted.net/f.jpg',
+      }),
+    );
+    expect(other).toMatchObject({
+      type: 'otro',
+      text: "marta artículos favoritos Jeans Levi's 501 se han vendido.",
+      link: null,
+      photo: 'https://images1.vinted.net/f.jpg',
     });
   });
 
@@ -149,6 +213,7 @@ describe('bandeja de mensajes', () => {
   it('una conversación sin leer genera un evento de mensaje', () => {
     expect(normalizeConversation(rawConversation())).toEqual({
       user_id: '555',
+      updated_at: '2026-11-10T16:00:00.000Z',
       event: {
         vinted_id: 'm:24083642155:2026-11-10T16:00:00.000Z',
         type: 'mensaje',
@@ -158,6 +223,8 @@ describe('bandeja de mensajes', () => {
         username: 'ana_23',
         at: '2026-11-10T16:00:00.000Z',
         read: false,
+        photo: null,
+        link: 'https://www.vinted.es/inbox/24083642155',
       },
     });
   });
@@ -165,13 +232,58 @@ describe('bandeja de mensajes', () => {
   it('un mensaje nuevo en la misma conversación es otro evento; una leída no genera nada', () => {
     const later = normalizeConversation(rawConversation({ updated_at: '2026-11-10T17:30:00+00:00' }));
     expect(later?.event?.vinted_id).toBe('m:24083642155:2026-11-10T17:30:00.000Z');
-    expect(normalizeConversation(rawConversation({ unread: false }))).toEqual({ user_id: '555', event: null });
+    expect(normalizeConversation(rawConversation({ unread: false }))).toEqual({
+      user_id: '555',
+      updated_at: '2026-11-10T16:00:00.000Z',
+      event: null,
+    });
   });
 
   it('lee la página', () => {
     const page = parseInboxPage({ conversations: [rawConversation(), rawConversation({ id: 2, unread: false })] });
     expect(page.rows.map((row) => row.user_id)).toEqual(['555', '555']);
     expect(() => parseInboxPage({})).toThrow(/bandeja/);
+  });
+});
+
+describe('pedidos vendidos', () => {
+  const rawOrder = (overrides: Record<string, unknown> = {}) => ({
+    conversation_id: '24000000001',
+    transaction_id: 19000000001,
+    title: 'Zapatillas camuflaje talla 41',
+    price: { amount: '42.00', currency_code: 'EUR' },
+    status: 'Etiqueta de envío enviada al vendedor.',
+    date: '2026-11-16T07:44:00Z',
+    photo: { url: 'https://images1.vinted.net/o.jpg', thumbnails: [{ type: 'thumb310x430', url: 'https://images1.vinted.net/o310.jpg' }] },
+    transaction_user_status: 'needs_action',
+    ...overrides,
+  });
+
+  it('normaliza un pedido con su precio real y su estado', () => {
+    expect(normalizeOrder(rawOrder())).toEqual({
+      vinted_id: '19000000001',
+      conversation_id: '24000000001',
+      title: 'Zapatillas camuflaje talla 41',
+      price: 42,
+      status_text: 'Etiqueta de envío enviada al vendedor.',
+      user_status: 'needs_action',
+      at: '2026-11-16T07:44:00.000Z',
+      photo: 'https://images1.vinted.net/o310.jpg',
+    });
+    expect(normalizeOrder(rawOrder({ transaction_id: null }))).toBeNull();
+  });
+
+  it('traduce el estado de Vinted', () => {
+    expect(orderState('needs_action')).toBe('enviar');
+    expect(orderState('completed')).toBe('completado');
+    expect(orderState('failed')).toBe('cancelado');
+    expect(orderState('waiting')).toBe('en_curso');
+    expect(orderState(null)).toBe('en_curso');
+  });
+
+  it('lee la página y para si cambia el formato', () => {
+    expect(parseOrdersPage({ my_orders: [rawOrder()], pagination: { total_pages: 1 } }).rows).toHaveLength(1);
+    expect(() => parseOrdersPage({ orders: [] })).toThrow(/pedidos/);
   });
 });
 

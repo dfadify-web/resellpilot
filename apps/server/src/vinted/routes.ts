@@ -12,8 +12,10 @@ import {
   applySync,
   forgetAccount,
   getVintedStatus,
+  inboxSince,
   listListings,
   listNotifications,
+  listOrders,
   reportVintedState,
   sendAlerts,
 } from './sync';
@@ -28,6 +30,13 @@ const id = z.string().regex(/^[\w:.+-]{1,160}$/);
 const text = z.string().max(400);
 const iso = z.string().datetime();
 const count = z.number().int().min(0).max(10_000_000);
+const httpsUrl = z
+  .string()
+  .max(600)
+  .refine((value) => value.startsWith('https://'), 'debe ser https')
+  .nullable()
+  .optional();
+const short = (max: number) => z.string().max(max).nullable().optional();
 
 // `.strict()`: cualquier campo de más (p. ej. cookies o tokens) hace que se rechace el envío entero.
 const syncSchema = z
@@ -44,6 +53,11 @@ const syncSchema = z
             favs: count,
             views: count,
             listed_at: iso.nullable(),
+            photo: httpsUrl,
+            brand: short(60),
+            size: short(30),
+            condition: short(40),
+            url: httpsUrl,
           })
           .strict(),
       )
@@ -61,11 +75,36 @@ const syncSchema = z
             username: z.string().max(60).nullable(),
             at: iso.nullable(),
             read: z.boolean(),
+            photo: httpsUrl,
+            link: httpsUrl,
           })
           .strict(),
       )
       .max(2000),
-    conversation_user_ids: z.array(z.string().regex(/^\d{1,20}$/)).max(2000),
+    conversation_user_ids: z.array(z.string().regex(/^\d{1,20}$/)).max(5000),
+    orders: z
+      .array(
+        z
+          .object({
+            vinted_id: z.string().regex(/^\d{1,20}$/),
+            // Mismo formato que admite `toId` en la extensión (no siempre es un número corto).
+            conversation_id: z.string().regex(/^[\w-]{1,64}$/).nullable(),
+            title: text.min(1),
+            price: z.number().min(0).max(1_000_000).nullable(),
+            status_text: z.string().max(200).nullable(),
+            user_status: z.string().max(40).nullable(),
+            at: iso.nullable(),
+            photo: z
+              .string()
+              .max(600)
+              .refine((value) => value.startsWith('https://'), 'debe ser https')
+              .nullable(),
+          })
+          .strict(),
+      )
+      .max(2000)
+      .optional(),
+    inbox_complete: z.boolean().optional(),
   })
   .strict();
 
@@ -93,6 +132,8 @@ export function registerVintedRoutes(app: FastifyInstance, db: Db, deps: VintedD
     read_min_interval_s: Math.max(1, getSettings(db).READ_MIN_INTERVAL_S),
     // Búsquedas públicas que toca medir en esta sync (Fase 4), ya limitadas por caché y por hora.
     trend_queries: dueQueries(db),
+    // Bandeja de mensajes: entera de vez en cuando; entre medias, solo lo nuevo.
+    inbox_since: inboxSince(db),
   }));
 
   app.post('/api/vinted/sync', { ...extension, bodyLimit: 4 * 1024 * 1024 }, async (request, reply) => {
@@ -151,6 +192,9 @@ export function registerVintedRoutes(app: FastifyInstance, db: Db, deps: VintedD
   });
 
   app.get('/api/notifications', async () => listNotifications(db));
+
+  /** Pedidos vendidos en Vinted, con los que hay que enviar primero. */
+  app.get('/api/orders', async () => listOrders(db));
 
   /** Marca como leídas en ResellPilot (no toca Vinted). Sin `ids`, todas. */
   app.post('/api/notifications/read', async (request) => {

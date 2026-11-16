@@ -3,7 +3,7 @@ import { Check, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { eur, signedEur, vintedEditUrl } from '../format';
 import { ui } from '../ui';
-import { Badge, Card, CardHeader } from './kit';
+import { Badge, Card, CardHeader, Thumb } from './kit';
 
 const priceText = (price: number): string => price.toFixed(2).replace('.', ',');
 
@@ -42,7 +42,8 @@ export function RepricingPanel({ rows }: { rows: RepricingRow[] }) {
         {rows.map((row) => (
           <li key={row.listing_id} className="flex flex-col gap-3 rounded-2xl border border-line bg-bg/60 p-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <Thumb src={row.photo} size={48} />
+              <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{row.title}</p>
                 <p className="text-xs text-muted">
                   {row.days_listed} días publicado · {row.favs} favoritos{row.item_name ? ` · ${row.item_name}` : ''}

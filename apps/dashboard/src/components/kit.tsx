@@ -2,7 +2,7 @@
  * Piezas del sistema de diseño: cabecera de página, tarjetas, KPIs, chips, insignias,
  * estados vacíos e ilustraciones (generadas en Google Flow, en `public/illustrations`).
  */
-import type { LucideIcon } from 'lucide-react';
+import { ImageOff, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ui } from '../ui';
 
@@ -325,5 +325,30 @@ export function IconButton({ label, icon: Icon, onClick, disabled, tone = 'defau
     >
       <Icon size={16} aria-hidden="true" />
     </button>
+  );
+}
+
+/** Foto pequeña de un anuncio o pedido (CDN de Vinted). Si falla o no hay, un hueco neutro. */
+export function Thumb({ src, size = 44, className }: { src: string | null | undefined; size?: number; className?: string }) {
+  return (
+    <span
+      className={cx('grid shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-sunken', className)}
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : (
+        <ImageOff size={Math.round(size / 3)} aria-hidden="true" className="text-faint" />
+      )}
+    </span>
   );
 }

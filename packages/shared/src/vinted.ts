@@ -29,15 +29,34 @@ export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   no_visible: 'Ya no está',
 };
 
-export const NOTIFICATION_TYPES = ['favorito', 'mensaje', 'venta', 'otro'] as const;
+export const NOTIFICATION_TYPES = ['favorito', 'mensaje', 'venta', 'pedido', 'otro'] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   favorito: 'Favorito',
   mensaje: 'Mensaje',
   venta: 'Venta',
+  pedido: 'Pedido',
   otro: 'Otro',
 };
+
+/** Estado de un pedido vendido, a partir de `transaction_user_status` de Vinted. */
+export const ORDER_STATES = ['enviar', 'en_curso', 'completado', 'cancelado'] as const;
+export type OrderState = (typeof ORDER_STATES)[number];
+
+export const ORDER_STATE_LABELS: Record<OrderState, string> = {
+  enviar: 'Por enviar',
+  en_curso: 'En curso',
+  completado: 'Completado',
+  cancelado: 'Cancelado',
+};
+
+export function orderState(userStatus: string | null | undefined): OrderState {
+  if (userStatus === 'needs_action') return 'enviar';
+  if (userStatus === 'completed') return 'completado';
+  if (userStatus === 'failed' || userStatus === 'cancelled' || userStatus === 'canceled') return 'cancelado';
+  return 'en_curso';
+}
 
 /** Anuncio tal como lo envía la extensión. */
 export interface SyncListing {
@@ -48,6 +67,29 @@ export interface SyncListing {
   favs: number;
   views: number;
   listed_at: string | null;
+  /** Miniatura de la primera foto (CDN de Vinted). */
+  photo?: string | null;
+  brand?: string | null;
+  size?: string | null;
+  /** Estado de uso: «Nuevo con etiquetas», «Muy bueno»… */
+  condition?: string | null;
+  url?: string | null;
+}
+
+/** Pedido vendido de `GET /api/v2/my_orders?type=sold`. */
+export interface SyncOrder {
+  /** `transaction_id` de Vinted. */
+  vinted_id: string;
+  conversation_id: string | null;
+  title: string;
+  /** Precio real de la venta (con oferta o lote incluidos). */
+  price: number | null;
+  /** Texto de estado que muestra Vinted: «Etiqueta de envío enviada al vendedor.» */
+  status_text: string | null;
+  /** `transaction_user_status`: needs_action, completed, failed… */
+  user_status: string | null;
+  at: string | null;
+  photo: string | null;
 }
 
 /** Notificación o mensaje tal como lo envía la extensión. */
@@ -62,6 +104,9 @@ export interface SyncEvent {
   username: string | null;
   at: string | null;
   read: boolean;
+  photo?: string | null;
+  /** Enlace a vinted.es para abrirla. */
+  link?: string | null;
 }
 
 export interface SyncPayload {
@@ -73,7 +118,14 @@ export interface SyncPayload {
   events: SyncEvent[];
   /** Ids de usuarios con los que ya hay conversación. */
   conversation_user_ids: string[];
+  /** Pedidos vendidos. Sin este campo (extensiones antiguas) las ventas salen solo de los anuncios. */
+  orders?: SyncOrder[];
+  /** `true` si se leyó la bandeja de mensajes entera (si no, solo hasta lo ya visto). */
+  inbox_complete?: boolean;
 }
+
+/** Cada cuánto se lee la bandeja de mensajes entera; entre medias, solo lo nuevo. */
+export const FULL_INBOX_EVERY_H = 6;
 
 /** Fila de `listings` tal como la devuelve la API del dashboard. */
 export interface ListingView {
@@ -90,6 +142,28 @@ export interface ListingView {
   item_name: string | null;
   days_listed: number | null;
   stale: boolean;
+  photo: string | null;
+  brand: string | null;
+  size: string | null;
+  condition: string | null;
+  url: string | null;
+}
+
+/** Pedido vendido tal como lo devuelve la API del dashboard. */
+export interface OrderView {
+  id: number;
+  vinted_id: string;
+  title: string;
+  price: number | null;
+  status_text: string | null;
+  state: OrderState;
+  at: string | null;
+  photo: string | null;
+  /** Conversación del pedido en vinted.es (para imprimir la etiqueta o escribir al comprador). */
+  url: string | null;
+  listing_id: number | null;
+  item_id: number | null;
+  item_name: string | null;
 }
 
 export interface NotificationView {
@@ -101,6 +175,8 @@ export interface NotificationView {
   listing_title: string | null;
   read: boolean;
   created_at: string;
+  photo: string | null;
+  link: string | null;
 }
 
 /** Estado de la conexión con la extensión, para el dashboard. */
@@ -126,11 +202,53 @@ export function toId(value: unknown): string | null {
   return null;
 }
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+/** `&#39;` → `'`, `&amp;` → `&`… Vinted envía algunos textos con entidades HTML. */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code: string) => {
+    if (code[0] === '#') {
+      const point = code[1]?.toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(point) && point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : whole;
+    }
+    return ENTITIES[code.toLowerCase()] ?? whole;
+  });
+}
+
 const toText = (value: unknown, max = 400): string | null => {
   if (typeof value !== 'string') return null;
-  const text = value.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  const text = decodeHtmlEntities(value.replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
   return text === '' ? null : text.slice(0, max);
 };
+
+/** Solo imágenes https (el CDN de Vinted). Cualquier otra cosa se descarta. */
+export function toImageUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 600) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Enlace de vinted.es: rutas relativas se completan; otros dominios o esquemas (`vintedfr://`) se descartan. */
+export function toVintedUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value === '' || value.length > 600) return null;
+  try {
+    const url = new URL(value, 'https://www.vinted.es');
+    return url.protocol === 'https:' && url.hostname === 'www.vinted.es' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Miniatura de una foto de Vinted: la de 310x430 si existe; si no, la foto normal. */
+function photoThumb(photo: Raw): string | null {
+  const thumbs = Array.isArray(photo.thumbnails) ? photo.thumbnails.map(asObject) : [];
+  const preferred = thumbs.find((thumb) => thumb.type === 'thumb310x430') ?? thumbs.find((thumb) => thumb.type === 'thumb150x210');
+  return toImageUrl(preferred?.url) ?? toImageUrl(photo.url);
+}
 
 const toCount = (value: unknown): number => {
   const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
@@ -201,6 +319,7 @@ export function normalizeListing(raw: Raw): SyncListing | null {
     .map((value) => (typeof value === 'string' ? Number(value) : value))
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
 
+  const main = photos.find((photo) => photo.is_main === true) ?? photos[0];
   return {
     vinted_id: id,
     title,
@@ -209,6 +328,11 @@ export function normalizeListing(raw: Raw): SyncListing | null {
     favs: toCount(raw.favourite_count),
     views: toCount(raw.view_count),
     listed_at: toIso(raw.created_at_ts ?? raw.created_at) ?? (timestamps.length > 0 ? toIso(Math.min(...timestamps)) : null),
+    photo: main ? photoThumb(main) : null,
+    brand: toText(raw.brand ?? raw.brand_title, 60),
+    size: toText(raw.size ?? raw.size_title, 30),
+    condition: toText(raw.status, 40),
+    url: toVintedUrl(raw.url ?? raw.path),
   };
 }
 
@@ -253,6 +377,8 @@ export function normalizeNotification(raw: Raw): SyncEvent | null {
     username,
     at: toIso(raw.updated_at),
     read: raw.is_read === true,
+    photo: toImageUrl(raw.small_photo_url) ?? toImageUrl(asObject(raw.photo).url),
+    link: toVintedUrl(link),
   };
 }
 
@@ -263,6 +389,8 @@ export const parseNotificationsPage = (json: unknown): Page<SyncEvent> =>
 
 export interface SyncConversation {
   user_id: string | null;
+  /** Última actividad (ISO), para leer la bandeja solo hasta lo ya visto. */
+  updated_at: string | null;
   /** Evento "mensaje nuevo" si la conversación tiene mensajes sin leer. */
   event: SyncEvent | null;
 }
@@ -278,6 +406,7 @@ export function normalizeConversation(raw: Raw): SyncConversation | null {
   const userId = toId(user.id);
   const username = toText(user.login, 60);
   const at = toIso(raw.updated_at);
+  const itemPhotos = Array.isArray(raw.item_photos) ? raw.item_photos.map(asObject) : [];
 
   const event: SyncEvent | null =
     raw.unread === true && at
@@ -290,13 +419,36 @@ export function normalizeConversation(raw: Raw): SyncConversation | null {
           username,
           at,
           read: false,
+          photo: itemPhotos[0] ? photoThumb(itemPhotos[0]) : null,
+          link: `https://www.vinted.es/inbox/${id}`,
         }
       : null;
-  return { user_id: userId, event };
+  return { user_id: userId, updated_at: at, event };
 }
 
 export const parseInboxPage = (json: unknown): Page<SyncConversation> =>
   pageOf(json, 'conversations', 'la bandeja de mensajes', normalizeConversation);
+
+// ───────────────────────── pedidos vendidos ─────────────────────────
+
+/** Pedido de `GET /api/v2/my_orders?type=sold`. */
+export function normalizeOrder(raw: Raw): SyncOrder | null {
+  const id = toId(raw.transaction_id);
+  const title = toText(raw.title, 300);
+  if (!id || !title) return null;
+  return {
+    vinted_id: id,
+    conversation_id: toId(raw.conversation_id),
+    title,
+    price: toPrice(raw.price),
+    status_text: toText(raw.status, 200),
+    user_status: toText(raw.transaction_user_status, 40),
+    at: toIso(raw.date),
+    photo: photoThumb(asObject(raw.photo)) ?? toImageUrl(raw.photo_url),
+  };
+}
+
+export const parseOrdersPage = (json: unknown): Page<SyncOrder> => pageOf(json, 'my_orders', 'los pedidos', normalizeOrder);
 
 // ───────────────────────── comandos (Fase 5) ─────────────────────────
 
