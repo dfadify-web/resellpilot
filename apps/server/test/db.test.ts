@@ -57,7 +57,7 @@ describe('db', () => {
     ]);
     expect(columns(db, 'trends')).toEqual([
       'id', 'query', 'median_price', 'p25_price', 'listings_count', 'avg_favs', 'favs_per_day',
-      'computed_at',
+      'computed_at', 'avg_price',
     ]);
     expect(columns(db, 'commands')).toEqual([
       'id', 'type', 'payload', 'status', 'progress', 'error', 'created_at',

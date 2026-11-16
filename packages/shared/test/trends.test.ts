@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_IDS_PER_DAY,
   computeTrendStats,
+  trimmedMean,
+  undercutPrice,
   deriveQuery,
   estPriceFromTrend,
   estimateAgeDays,
@@ -114,6 +116,7 @@ describe('estadísticas de una búsqueda', () => {
 
   it('mediana, p25, total, favoritos medios y favoritos por día', () => {
     expect(computeTrendStats(result, clock)).toEqual({
+      avg_price: 25,
       median_price: 25,
       p25_price: 17.5,
       listings_count: 500,
@@ -129,12 +132,25 @@ describe('estadísticas de una búsqueda', () => {
 
   it('una búsqueda sin resultados', () => {
     expect(computeTrendStats({ query: 'x', total_text: '', cards: [] }, clock)).toEqual({
+      avg_price: null,
       median_price: null,
       p25_price: null,
       listings_count: 0,
       avg_favs: null,
       favs_per_day: null,
     });
+  });
+
+  it('precio medio sin extremos y precio para vender por debajo de la media', () => {
+    expect(trimmedMean([])).toBeNull();
+    expect(trimmedMean([10, 20, 30])).toBe(20);
+    // Con 10 o más precios se quitan el más barato y el más caro (10 % por cada lado).
+    expect(trimmedMean([1, 10, 10, 10, 10, 10, 10, 10, 10, 500])).toBe(10);
+    expect(undercutPrice(16.4, 10)).toBe(14.5);
+    expect(undercutPrice(20, 10)).toBe(18);
+    expect(undercutPrice(4.99, 10)).toBe(4.49);
+    expect(undercutPrice(20, 0)).toBe(20);
+    expect(undercutPrice(20, 200)).toBe(2);
   });
 
   it('precio estimado = (p25 + mediana) / 2', () => {

@@ -276,3 +276,50 @@ describe('ajustes', () => {
     expect(after.settings).toMatchObject({ STALE_DAYS: 14, MIN_ROI_PCT: 80, MSG_DELAY_MIN_S: 45, DRY_RUN: true });
   });
 });
+
+describe('búsquedas al momento (Calculadora)', () => {
+  const ask = (query: string) => app.inject({ method: 'POST', url: '/api/trends/search', payload: { query } });
+  const status = async (query: string) =>
+    (await app.inject({ method: 'GET', url: `/api/trends/search?query=${encodeURIComponent(query)}` })).json() as {
+      query: string;
+      status: string;
+      trend: TrendView | null;
+    };
+  const next = async (headers: Record<string, string> = { origin: ORIGIN }) =>
+    app.inject({ method: 'GET', url: '/api/vinted/searches/next', headers });
+
+  it('pide la búsqueda, la extensión la recoge y al medirla queda con precio medio', async () => {
+    const asked = (await ask('Termo de acero 500 ml negro')).json() as { query: string; status: string };
+    expect(asked).toMatchObject({ query: 'termo acero negro', status: 'pendiente' });
+
+    expect((await next()).json()).toMatchObject({ queries: ['termo acero negro'], read_min_interval_s: 3 });
+    // Solo la extensión puede recogerlas.
+    expect((await next({ origin: 'https://evil.example' })).statusCode).toBe(403);
+
+    expect((await postTrends({ max_id_now: MAX_ID, results: [result('termo acero negro')] })).statusCode).toBe(200);
+    const done = await status('termo acero negro');
+    expect(done.status).toBe('medida');
+    expect(done.trend).toMatchObject({ query: 'termo acero negro', avg_price: 25, median_price: 25, origins: ['busqueda'] });
+    expect((await next()).json()).toMatchObject({ queries: [] });
+    // Aparece en Tendencias como «búsqueda».
+    expect((await trends()).trends.find((trend) => trend.query === 'termo acero negro')?.origins).toEqual(['busqueda']);
+  });
+
+  it('si ya hay una medición reciente no vuelve a pedir nada a Vinted', async () => {
+    await put({ trend_seeds: ['lampara led'] });
+    await postTrends({ max_id_now: MAX_ID, results: [result('lampara led')] });
+    const asked = (await ask('lámpara LED')).json() as { status: string; trend: TrendView };
+    expect(asked.status).toBe('medida');
+    expect(asked.trend.avg_price).toBe(25);
+    expect((await next()).json()).toMatchObject({ queries: [] });
+  });
+
+  it('respeta el límite por hora y rechaza textos sin palabras', async () => {
+    await put({ settings: { TRENDS_MAX_REQ_PER_HOUR: 2 } });
+    for (const query of ['termo acero', 'lampara led', 'organizador cables', 'funda portatil']) await ask(query);
+    // 2 por hora, una reservada para calibrar → 1 búsqueda.
+    expect(((await next()).json() as { queries: string[] }).queries).toEqual(['termo acero']);
+    expect((await ask('de la y')).statusCode).toBe(400);
+    expect((await ask('x')).statusCode).toBe(400);
+  });
+});

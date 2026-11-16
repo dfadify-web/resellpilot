@@ -112,6 +112,14 @@ export interface DailyReportResponse {
   sent_today: boolean;
 }
 
+export interface PriceSearchResponse {
+  query: string;
+  status: 'medida' | 'pendiente';
+  trend: TrendView | null;
+  /** Estado de la extensión: si no está activa, la búsqueda no se hará. */
+  vinted: VintedStatus;
+}
+
 export type CommandInput =
   | { type: 'send_offers'; favoriter_ids: number[] }
   | { type: 'price_drop'; listing_ids: number[] };
@@ -152,6 +160,9 @@ export const api = {
   createCommand: (input: CommandInput) => request<CommandView>('/api/commands', json('POST', input)),
   cancelCommand: (id: number) => request<CommandView>(`/api/commands/${id}/cancel`, { method: 'POST' }),
   repricing: () => request<RepricingRow[]>('/api/repricing'),
+  searchPrice: (query: string) => request<PriceSearchResponse>('/api/trends/search', json('POST', { query })),
+  priceSearchStatus: (query: string) =>
+    request<PriceSearchResponse>(`/api/trends/search?query=${encodeURIComponent(query)}`),
   weeklyReports: () => request<WeeklyReportsResponse>('/api/reports/weekly'),
   dailyReport: () => request<DailyReportResponse>('/api/reports/daily'),
   sendDailyReport: () => request<{ ok: boolean; error?: string }>('/api/reports/daily/send', { method: 'POST' }),

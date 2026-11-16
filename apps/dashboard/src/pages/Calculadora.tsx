@@ -1,20 +1,21 @@
 import {
   STOCK_LABELS,
   calculate,
-  estPriceFromTrend,
   matchTrend,
   type StockState,
   type TrendView,
   type Verdict,
 } from '@resellpilot/shared';
-import { CircleCheck, CircleX, PackagePlus, Scale, Sparkles } from 'lucide-react';
+import { CircleCheck, CircleX, PackagePlus, Scale, ScanSearch } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { Badge, Card, CardHeader, Notice, Page, PageHeader } from '../components/kit';
+import { PriceFinder, suggestedPrice } from '../components/PriceFinder';
 import { eur, pct, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
+import { usePriceSearch } from '../usePriceSearch';
 
 const VERDICTS: Record<Verdict, { title: string; text: string; tone: string; icon: typeof CircleCheck }> = {
   compensa: { title: 'Compensa', text: 'Cumple tu beneficio y tu ROI mínimos.', tone: 'bg-accent text-on-accent', icon: CircleCheck },
@@ -71,6 +72,8 @@ export function Calculadora() {
   const [packaging, setPackaging] = useState('0,3');
   const [sell, setSell] = useState(params.get('venta')?.replace('.', ',') ?? '');
   const [offerPct, setOfferPct] = useState('10');
+  /** Cuánto por debajo de la media de Vinted se propone vender. */
+  const [undercut, setUndercut] = useState('10');
   const [minProfit, setMinProfit] = useState(5);
   const [minRoiPct, setMinRoiPct] = useState(80);
   const [trends, setTrends] = useState<TrendView[]>([]);
@@ -96,7 +99,12 @@ export function Calculadora() {
   }, []);
 
   const trend = useMemo(() => (name.trim().length >= 3 ? matchTrend(name, trends) : null), [name, trends]);
-  const trendPrice = trend ? estPriceFromTrend(trend) : null;
+  const applyPrice = (price: number) => setSell(String(price).replace('.', ','));
+  // Al llegar el precio de Vinted se rellena solo el precio de venta (media − X %).
+  const search = usePriceSearch((found) => {
+    const price = suggestedPrice(found, toNumber(undercut));
+    if (price !== null) applyPrice(price);
+  });
 
   const result = calculate({
     buy: toNumber(buy),
@@ -149,35 +157,32 @@ export function Calculadora() {
               <label className={ui.label} htmlFor="calc-name">
                 Producto
               </label>
-              <input
-                id="calc-name"
-                className={ui.input}
-                placeholder="Termo acero 500 ml"
-                value={name}
-                maxLength={200}
-                onChange={(event) => setName(event.target.value)}
-              />
-              {trend && trendPrice !== null ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-accent-soft px-3 py-2 text-[13px]">
-                  <Sparkles size={14} aria-hidden="true" className="text-accent" />
-                  <span>
-                    Tendencia «{trend.query}»: venta estimada <strong>{eur(trendPrice)}</strong>
-                    <span className="text-muted">
-                      {' '}
-                      · {trend.listings_count >= 500 ? '500+' : trend.listings_count} anuncios ·{' '}
-                      {trend.favs_per_day?.toLocaleString('es-ES', { maximumFractionDigits: 2 }) ?? '—'} favs/día
-                    </span>
-                  </span>
-                  <button type="button" className={`${ui.link} ml-auto`} onClick={() => setSell(String(trendPrice).replace('.', ','))}>
-                    Usar este precio
-                  </button>
-                </div>
-              ) : (
-                <p className={ui.help}>
-                  Si el nombre coincide con una búsqueda medida en <Link to="/tendencias" className={ui.link}>Tendencias</Link>, te
-                  propone el precio de venta real de Vinted.
-                </p>
-              )}
+              <div className="flex flex-wrap gap-2">
+                <input
+                  id="calc-name"
+                  className={`${ui.input} min-w-[200px] flex-1`}
+                  placeholder="Termo acero 500 ml"
+                  value={name}
+                  maxLength={200}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    if (search.state.phase !== 'waiting') search.reset();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && name.trim().length >= 2) void search.start(name);
+                  }}
+                />
+                <button
+                  type="button"
+                  className={ui.secondary}
+                  disabled={name.trim().length < 2 || search.state.phase === 'waiting'}
+                  onClick={() => void search.start(name)}
+                >
+                  <ScanSearch size={16} aria-hidden="true" />
+                  Buscar precio
+                </button>
+              </div>
+              <PriceFinder search={search.state} matched={trend} undercutPct={toNumber(undercut)} onUse={applyPrice} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -185,8 +190,16 @@ export function Calculadora() {
               <MoneyField id="calc-shipping" label="Envío de la compra" value={shipping} onChange={setShipping} />
               <MoneyField id="calc-extra" label="Otros costes" value={extra} onChange={setExtra} />
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
               <MoneyField id="calc-sell" label="Precio de venta previsto" value={sell} onChange={setSell} />
+              <MoneyField
+                id="calc-undercut"
+                label="Bajo la media de Vinted"
+                value={undercut}
+                onChange={setUndercut}
+                unit="%"
+                help="Para vender antes que la competencia."
+              />
               <MoneyField id="calc-packaging" label="Embalaje" value={packaging} onChange={setPackaging} />
               <MoneyField id="calc-offer" label="Oferta habitual" value={offerPct} onChange={setOfferPct} unit="%" />
             </div>

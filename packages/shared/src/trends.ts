@@ -31,6 +31,8 @@ export interface SearchCard {
 }
 
 export interface TrendStats {
+  /** Precio medio de los anuncios, sin el 10 % más barato ni el 10 % más caro (si hay 10 o más). */
+  avg_price: number | null;
   median_price: number | null;
   p25_price: number | null;
   /** Total de anuncios de la búsqueda (500 si Vinted dice "500+"). */
@@ -56,7 +58,7 @@ export interface IdAnchor {
   atMs: number;
 }
 
-export type TrendOrigin = 'semilla' | 'item' | 'deal';
+export type TrendOrigin = 'semilla' | 'item' | 'deal' | 'busqueda';
 
 export interface TrendView extends TrendStats {
   query: string;
@@ -110,6 +112,29 @@ export function percentile(values: readonly number[], p: number): number | null 
   return lowValue + (highValue - lowValue) * (position - low);
 }
 
+/**
+ * Media recortada: sin el 10 % más barato ni el 10 % más caro cuando hay 10 precios o más, para que un
+ * anuncio a 1 € o a 500 € no mueva la media. Con menos, la media normal. `null` si no hay precios.
+ */
+export function trimmedMean(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const cut = sorted.length >= 10 ? Math.floor(sorted.length * 0.1) : 0;
+  const kept = sorted.slice(cut, sorted.length - cut);
+  return kept.reduce((sum, value) => sum + value, 0) / kept.length;
+}
+
+/**
+ * Precio para vender un poco más barato que la media: media − `undercutPct` %. Por encima de 5 € se
+ * redondea hacia abajo al medio euro (14,76 → 14,50), que queda mejor en un anuncio.
+ */
+export function undercutPrice(average: number, undercutPct: number): number {
+  const pct = Math.min(Math.max(undercutPct, 0), 90);
+  const raw = (average * (100 - pct)) / 100;
+  // El 1e-6 evita que 1,9999999 (coma flotante) se quede en 1,99.
+  return raw >= 5 ? Math.floor(raw * 2 + 1e-6) / 2 : Math.floor(raw * 100 + 1e-6) / 100;
+}
+
 /** Antigüedad estimada de un artículo por su id (mínimo 1 día). */
 export function estimateAgeDays(id: number, clock: IdClock, nowMs: number = clock.atMs): number {
   const sinceMax = (clock.maxId - id) / clock.idsPerDay;
@@ -146,7 +171,9 @@ export function computeTrendStats(result: RawSearchResult, clock: IdClock | null
   const exposureDays = clock === null ? 0 : cards.reduce((sum, card) => sum + estimateAgeDays(card.id, clock, nowMs), 0);
   const favsPerDay = exposureDays > 0 ? cards.reduce((sum, card) => sum + card.favs, 0) / exposureDays : null;
 
+  const average = trimmedMean(prices);
   return {
+    avg_price: average === null ? null : round2(average),
     median_price: median === null ? null : round2(median),
     p25_price: p25 === null ? null : round2(p25),
     listings_count: parseTotalResults(result.total_text, cards.length),

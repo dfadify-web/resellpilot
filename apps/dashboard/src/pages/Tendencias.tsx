@@ -1,5 +1,5 @@
 import type { TrendOrigin, TrendView } from '@resellpilot/shared';
-import { ArrowDownRight, ArrowUpRight, ExternalLink, Search } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ExternalLink, ScanSearch, Search } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, describeError, type TrendsResponse } from '../api';
@@ -8,7 +8,7 @@ import { Badge, Card, EmptyState, IconButton, Notice, Page, PageHeader, TableCar
 import { eur, num } from '../format';
 import { ui, usePageTitle } from '../ui';
 
-const ORIGIN_LABELS: Record<TrendOrigin, string> = { semilla: 'Semilla', item: 'Item', deal: 'Oportunidad' };
+const ORIGIN_LABELS: Record<TrendOrigin, string> = { semilla: 'Semilla', item: 'Item', deal: 'Oportunidad', busqueda: 'Búsqueda' };
 const REFRESH_MS = 30_000;
 
 const ago = (iso: string | null): string => {
@@ -39,6 +39,28 @@ export function Tendencias() {
   const [data, setData] = useState<TrendsResponse | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [newQuery, setNewQuery] = useState('');
+  const [asking, setAsking] = useState(false);
+
+  /** Pide medir una búsqueda ya (la extensión la hace en menos de un minuto). */
+  async function measureNow() {
+    setAsking(true);
+    setProblem(null);
+    try {
+      const response = await api.searchPrice(newQuery);
+      setNotice(
+        response.status === 'medida'
+          ? `«${response.query}» ya estaba medida: la tienes en la tabla.`
+          : `«${response.query}» se medirá en menos de un minuto (con una pestaña de vinted.es abierta).`,
+      );
+      setNewQuery('');
+      await reload();
+    } catch (error) {
+      setProblem(describeError(error));
+    } finally {
+      setAsking(false);
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -82,7 +104,29 @@ export function Tendencias() {
         description="Qué se busca y se guarda en favoritos en Vinted, y a qué precio se vende. Úsalo antes de comprar un lote."
         illustration="tendencias"
         actions={
-          data && data.due > 0 ? <Badge tone="accent">{data.due} en la próxima sync de la extensión</Badge> : undefined
+          <>
+            <form
+              className="flex min-w-[280px] flex-1 gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (newQuery.trim().length >= 2) void measureNow();
+              }}
+            >
+              <input
+                aria-label="Búsqueda para medir ahora"
+                className={`${ui.input} rounded-full`}
+                placeholder="Medir una búsqueda ahora: «sudadera vintage»"
+                value={newQuery}
+                maxLength={120}
+                onChange={(event) => setNewQuery(event.target.value)}
+              />
+              <button type="submit" className={ui.primary} disabled={asking || newQuery.trim().length < 2}>
+                <ScanSearch size={16} aria-hidden="true" />
+                Medir
+              </button>
+            </form>
+            {data && data.due > 0 && <Badge tone="accent">{data.due} en la próxima sync</Badge>}
+          </>
         }
       />
 
@@ -108,7 +152,7 @@ export function Tendencias() {
               <th className={`${ui.th} min-w-[220px]`}>Búsqueda</th>
               <th className={`${ui.th} min-w-[170px]`}>Favs / día</th>
               <th className={`${ui.th} text-right`}>vs semana ant.</th>
-              <th className={`${ui.th} text-right`}>Mediana · P25</th>
+              <th className={`${ui.th} text-right`}>Precio medio</th>
               <th className={`${ui.th} text-right`}>Venta est.</th>
               <th className={`${ui.th} text-right`}>Anuncios</th>
               <th className={ui.th}>Medido</th>
@@ -157,8 +201,10 @@ export function Tendencias() {
                   <Change ratio={trend.week_change} />
                 </td>
                 <td className={`${ui.td} whitespace-nowrap text-right text-muted`}>
-                  {eur(trend.median_price)}
-                  <span className="block text-xs text-faint">{eur(trend.p25_price)}</span>
+                  <span className="font-semibold text-ink">{eur(trend.avg_price)}</span>
+                  <span className="block text-xs text-faint">
+                    mediana {eur(trend.median_price)} · P25 {eur(trend.p25_price)}
+                  </span>
                 </td>
                 <td className={`${ui.td} text-right font-semibold`}>{eur(trend.est_price)}</td>
                 <td className={`${ui.td} text-right`}>

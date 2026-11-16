@@ -1,5 +1,5 @@
-import { RISK_BRAND, type DealStatus, type DealView } from '@resellpilot/shared';
-import { Calculator, ExternalLink, ImageOff, RefreshCw, RotateCcw, Search, Send, ShoppingBag, Star, X } from 'lucide-react';
+import { RISK_BRAND, deriveQuery, type DealStatus, type DealView } from '@resellpilot/shared';
+import { Calculator, ExternalLink, ImageOff, RefreshCw, RotateCcw, ScanSearch, Search, Send, ShoppingBag, Star, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, describeError, type SourcesResponse } from '../api';
@@ -380,6 +380,21 @@ export function Oportunidades() {
                     <td className={`${ui.td} whitespace-nowrap text-right`}>
                       {deal.status === 'nuevo' && (
                         <span className="inline-flex items-center gap-1">
+                          {deal.est_price === null && deriveQuery(deal.title) !== null && (
+                            <IconButton
+                              label={`Medir ya en Vinted el precio de «${name}»`}
+                              icon={ScanSearch}
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  const response = await api.searchPrice(deriveQuery(deal.title) as string);
+                                  return response.status === 'medida'
+                                    ? `«${response.query}» ya estaba medida.`
+                                    : `Midiendo «${response.query}» en Vinted: el precio estimado aparecerá en menos de un minuto.`;
+                                })
+                              }
+                            />
+                          )}
                           <IconButton
                             label={`Calcular si compensa «${name}»`}
                             icon={Calculator}

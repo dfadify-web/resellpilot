@@ -171,7 +171,61 @@ async function checkCommands(): Promise<void> {
   await chrome.tabs.sendMessage(tabId, request).catch(() => undefined);
 }
 
-const scheduleCommands = () => chrome.alarms.create(COMMANDS_ALARM, { periodInMinutes: 1 });
+/**
+ * Búsquedas pedidas desde el dashboard (Calculadora, Oportunidades, Tendencias). Se miden enseguida, en la
+ * pestaña de vinted.es y con las mismas reglas que las tendencias: ritmo mínimo, límite por hora y parada
+ * ante 403, 429 o verificación.
+ */
+async function searchNow(): Promise<void> {
+  if (running) return;
+  const state = await getState();
+  if (!state.enabled || state.paused) return;
+
+  let next: { queries: string[]; read_min_interval_s: number };
+  try {
+    next = await api('/api/vinted/searches/next');
+  } catch {
+    return;
+  }
+  if (next.queries.length === 0) return;
+
+  const tabs = await chrome.tabs.query({ url: VINTED_MATCH, discarded: false });
+  const tab = tabs.find((candidate) => candidate.active) ?? tabs[0];
+  if (tab?.id === undefined) {
+    await setState({ notice: 'Hay búsquedas de precio pendientes: abre una pestaña de vinted.es.' });
+    return;
+  }
+
+  running = true;
+  const lease = crypto.randomUUID();
+  try {
+    await setState({ notice: `Buscando precios en Vinted (${next.queries.length})…`, lease });
+    const request: TrendsRequest = { kind: 'trends', queries: next.queries, intervalS: next.read_min_interval_s, lease };
+    let trends: TrendsResponse | undefined;
+    try {
+      trends = await chrome.tabs.sendMessage(tab.id, request);
+    } catch {
+      await setState({ notice: 'Recarga la pestaña de vinted.es (F5) para buscar precios.' });
+      return;
+    }
+    if (!trends) return;
+    if (!trends.ok) {
+      if (trends.stop) await pause(trends.message);
+      else if ((await getState()).lease === lease) await setState({ notice: trends.message });
+      return;
+    }
+    await api('/api/vinted/trends', trends.payload);
+    await setState({ notice: '' });
+  } catch (error) {
+    await setState({ notice: error instanceof Error ? error.message : 'No se pudieron buscar los precios.' });
+  } finally {
+    if ((await getState()).lease === lease) await setState({ lease: null });
+    running = false;
+  }
+}
+
+// Cada 30 s (el mínimo de Chrome): comandos confirmados y búsquedas de precio pedidas.
+const scheduleCommands = () => chrome.alarms.create(COMMANDS_ALARM, { periodInMinutes: 0.5 });
 
 /** Al arrancar el navegador o actualizar la extensión: retoma la programación si procede. */
 async function resume(): Promise<void> {
@@ -190,7 +244,7 @@ chrome.runtime.onStartup.addListener(() => void resume());
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SYNC_ALARM) void sync();
-  if (alarm.name === COMMANDS_ALARM) void checkCommands();
+  if (alarm.name === COMMANDS_ALARM) void checkCommands().then(searchNow);
 });
 
 chrome.runtime.onMessage.addListener((message: PanelMessage | ContentMessage, sender, respond) => {
@@ -225,6 +279,7 @@ chrome.runtime.onMessage.addListener((message: PanelMessage | ContentMessage, se
       await scheduleCommands();
       await sync();
       await checkCommands();
+      await searchNow();
       respond(true);
     })();
     return true;

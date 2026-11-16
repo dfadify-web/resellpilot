@@ -98,7 +98,7 @@ entra con **tu** cuenta y solo lee mensajes (no escribe, no se une a nada):
 | Notificaciones | Favoritos, mensajes y ventas, con estado de leída propio. |
 | Oportunidades | Deals de tus fuentes ordenados por score, con beneficio y ROI estimados. «Comprado» crea el item en Inventario. |
 | Tendencias | Búsquedas de Vinted ordenadas por favoritos/día, con variación semanal y «Buscar en Hacoo». |
-| Calculadora | **¿Me compensa?** Antes de comprar: coste, beneficio, ROI, a cuánto anunciarlo y qué oferta mínima aceptar. Propone el precio de venta de Tendencias y guarda la compra en Inventario. |
+| Calculadora | **¿Me compensa?** Antes de comprar: coste, beneficio, ROI, a cuánto anunciarlo y qué oferta mínima aceptar. **«Buscar precio»** mira en Vinted a cuánto se vende de media y propone venderlo un 10 % más barato (ajustable). Guarda la compra en Inventario. |
 | Inventario | Compras y ventas, beneficio real, CSV y botón **«Anuncio»**: genera título, descripción y hashtags para copiar en Vinted. |
 | Ajustes | Umbrales, límites, semillas de tendencias y plantilla del mensaje de oferta. |
 

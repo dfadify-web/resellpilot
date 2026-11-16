@@ -3,6 +3,7 @@ import {
   deriveQuery,
   estPriceFromTrend,
   idsPerDayFrom,
+  keywordsOf,
   queryKey,
   relativeChange,
   type IdAnchor,
@@ -16,6 +17,12 @@ import type { Db } from '../db';
 import { getRawSetting, getSettings, setRawSetting } from '../settings';
 
 const KEY_SEEDS = 'TREND_SEEDS';
+/** Búsquedas pedidas al momento desde el dashboard (Calculadora, Oportunidades, Tendencias). */
+const KEY_REQUESTS = 'TREND_REQUESTS';
+const REQUEST_TTL_DAYS = 7;
+const MAX_REQUESTS = 50;
+/** Búsquedas al momento por tanda de la extensión. */
+export const MAX_SEARCHES_PER_RUN = 3;
 const KEY_ANCHORS = 'VINTED_ID_ANCHORS';
 /** Momentos de las peticiones de calibración (`/catalog?order=newest_first`), para el límite por hora. */
 const KEY_CALIBRATIONS = 'TRENDS_CALIBRATIONS';
@@ -73,6 +80,7 @@ export function collectQueries(db: Db): Map<string, Set<TrendOrigin>> {
     queries.set(key, origins);
   };
 
+  for (const request of getRequests(db)) add(request.query, 'busqueda');
   for (const seed of getSeeds(db)) add(seed, 'semilla');
 
   const items = db
@@ -95,7 +103,7 @@ export function collectQueries(db: Db): Map<string, Set<TrendOrigin>> {
 export function latestTrends(db: Db): TrendRow[] {
   return db
     .prepare(
-      `SELECT t.query, t.median_price, t.p25_price, t.listings_count, t.avg_favs, t.favs_per_day, t.computed_at
+      `SELECT t.query, t.avg_price, t.median_price, t.p25_price, t.listings_count, t.avg_favs, t.favs_per_day, t.computed_at
        FROM trends t
        JOIN (SELECT query, MAX(computed_at) AS latest FROM trends GROUP BY query) m
          ON m.query = t.query AND m.latest = t.computed_at
@@ -120,6 +128,12 @@ const requestsSince = (db: Db, sinceIso: string): number =>
   (db.prepare('SELECT COUNT(*) AS n FROM trends WHERE computed_at > ?').get(sinceIso) as { n: number }).n +
   calibrations(db).filter((at) => at > sinceIso).length;
 
+/** Peticiones que aún caben esta hora en `TRENDS_MAX_REQ_PER_HOUR` (una reservada para calibrar). */
+function hourlyBudget(db: Db, now: Date): number {
+  const usedLastHour = requestsSince(db, new Date(now.getTime() - HOUR_MS).toISOString());
+  return getSettings(db).TRENDS_MAX_REQ_PER_HOUR - usedLastHour - 1;
+}
+
 /**
  * Consultas que toca medir ahora: sin medición dentro de `TRENDS_CACHE_H`, respetando
  * `TRENDS_MAX_REQ_PER_HOUR` (se reserva una petición para la calibración) y el tope por sync.
@@ -129,11 +143,10 @@ export function dueQueries(db: Db, now: Date = new Date()): string[] {
   const fresh = new Date(now.getTime() - settings.TRENDS_CACHE_H * HOUR_MS).toISOString();
   const measured = new Map(latestTrends(db).map((trend) => [trend.query, trend.computed_at]));
 
-  const usedLastHour = requestsSince(db, new Date(now.getTime() - HOUR_MS).toISOString());
-  const budget = Math.min(MAX_QUERIES_PER_SYNC, settings.TRENDS_MAX_REQ_PER_HOUR - usedLastHour - 1);
+  const budget = Math.min(MAX_QUERIES_PER_SYNC, hourlyBudget(db, now));
   if (budget <= 0) return [];
 
-  const rank: Record<TrendOrigin, number> = { semilla: 0, item: 1, deal: 2 };
+  const rank: Record<TrendOrigin, number> = { busqueda: 0, semilla: 1, item: 2, deal: 3 };
   return [...collectQueries(db).entries()]
     .filter(([query]) => (measured.get(query) ?? '') <= fresh)
     .sort(([queryA, a], [queryB, b]) => {
@@ -209,8 +222,8 @@ export function recordTrends(db: Db, payload: TrendsPayload, now: Date = new Dat
     if (payload.max_id_now !== null) recordCalibration(db, now);
     const clock = maxId !== null ? recordAnchor(db, maxId, now) : getIdClock(db);
     const insert = db.prepare(
-      `INSERT INTO trends (query, median_price, p25_price, listings_count, avg_favs, favs_per_day, computed_at)
-       VALUES (@query, @median_price, @p25_price, @listings_count, @avg_favs, @favs_per_day, @computed_at)`,
+      `INSERT INTO trends (query, avg_price, median_price, p25_price, listings_count, avg_favs, favs_per_day, computed_at)
+       VALUES (@query, @avg_price, @median_price, @p25_price, @listings_count, @avg_favs, @favs_per_day, @computed_at)`,
     );
     const done = new Set<string>();
     for (const result of payload.results) {
@@ -240,6 +253,7 @@ export function listTrends(db: Db, now: Date = new Date()): TrendView[] {
       return {
         query,
         origins: [...origins],
+        avg_price: null,
         median_price: null,
         p25_price: null,
         listings_count: 0,
@@ -261,6 +275,7 @@ export function listTrends(db: Db, now: Date = new Date()): TrendView[] {
     return {
       query,
       origins: [...origins],
+      avg_price: trend.avg_price,
       median_price: trend.median_price,
       p25_price: trend.p25_price,
       listings_count: trend.listings_count,
@@ -279,4 +294,76 @@ export function listTrends(db: Db, now: Date = new Date()): TrendView[] {
       (b.favs_per_day ?? -1) - (a.favs_per_day ?? -1) ||
       a.query.localeCompare(b.query),
   );
+}
+
+// ───────────────────────── búsquedas al momento ─────────────────────────
+
+interface SearchRequest {
+  query: string;
+  /** Desde cuándo vale una medición para esta petición. */
+  at: string;
+}
+
+function getRequests(db: Db, now: Date = new Date()): SearchRequest[] {
+  const since = new Date(now.getTime() - REQUEST_TTL_DAYS * DAY_MS).toISOString();
+  const list = readJson<unknown>(db, KEY_REQUESTS, []);
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (entry): entry is SearchRequest =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as SearchRequest).query === 'string' &&
+      typeof (entry as SearchRequest).at === 'string' &&
+      (entry as SearchRequest).at > since,
+  );
+}
+
+/** Consulta de búsqueda para un texto libre: sus 3 primeras palabras clave. `null` si no tiene ninguna. */
+export function searchQueryFor(text: string): string | null {
+  const words = keywordsOf(text).slice(0, 3);
+  return words.length === 0 ? null : queryKey(words.join(' '));
+}
+
+export type SearchState = 'medida' | 'pendiente';
+
+export interface SearchStatus {
+  query: string;
+  status: SearchState;
+  trend: TrendView | null;
+}
+
+/**
+ * Pide medir una búsqueda cuanto antes. Si ya hay una medición dentro de `TRENDS_CACHE_H` horas, vale esa
+ * y no se vuelve a pedir nada a Vinted.
+ */
+export function requestSearch(db: Db, text: string, now: Date = new Date()): SearchStatus | null {
+  const query = searchQueryFor(text);
+  if (query === null) return null;
+  const fresh = new Date(now.getTime() - getSettings(db).TRENDS_CACHE_H * HOUR_MS).toISOString();
+  const measured = latestTrends(db).find((trend) => trend.query === query);
+  const at = measured && measured.computed_at > fresh ? measured.computed_at : now.toISOString();
+  const requests = [...getRequests(db, now).filter((request) => request.query !== query), { query, at }].slice(-MAX_REQUESTS);
+  setRawSetting(db, KEY_REQUESTS, JSON.stringify(requests));
+  return searchStatus(db, query, now);
+}
+
+/** Estado de una búsqueda pedida: ya medida (con su tendencia) o pendiente de la extensión. */
+export function searchStatus(db: Db, query: string, now: Date = new Date()): SearchStatus {
+  const key = queryKey(query);
+  const trend = listTrends(db, now).find((view) => view.query === key) ?? null;
+  const request = getRequests(db, now).find((entry) => entry.query === key);
+  const done = trend?.computed_at != null && (!request || trend.computed_at >= request.at);
+  return { query: key, status: done ? 'medida' : 'pendiente', trend: done ? trend : null };
+}
+
+/** Búsquedas pedidas que la extensión debe medir ya: las más antiguas primero, dentro del límite por hora. */
+export function pendingSearches(db: Db, now: Date = new Date()): string[] {
+  const budget = Math.min(MAX_SEARCHES_PER_RUN, hourlyBudget(db, now));
+  if (budget <= 0) return [];
+  const measured = new Map(latestTrends(db).map((trend) => [trend.query, trend.computed_at]));
+  return getRequests(db, now)
+    .filter((request) => (measured.get(request.query) ?? '') < request.at)
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(0, budget)
+    .map((request) => request.query);
 }

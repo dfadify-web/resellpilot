@@ -15,7 +15,18 @@ import { extensionGuard } from '../extension-guard';
 import { getOfferTemplate } from '../offers/service';
 import { getRawSetting, getSettings, setRawSetting } from '../settings';
 import type { Notifier } from '../telegram';
-import { dueQueries, getIdClock, getSeeds, listTrends, recordTrends, setSeeds } from './service';
+import { getVintedStatus } from '../vinted/sync';
+import {
+  dueQueries,
+  getIdClock,
+  getSeeds,
+  listTrends,
+  pendingSearches,
+  recordTrends,
+  requestSearch,
+  searchStatus,
+  setSeeds,
+} from './service';
 
 export interface TrendsDeps {
   notifier: Notifier;
@@ -29,6 +40,8 @@ const KEY_SEARCH_URL = 'HACOO_SEARCH_URL';
  * Por defecto el botón "Buscar en Hacoo" copia la consulta y abre la web de enlaces.
  */
 export const DEFAULT_SEARCH_URL = 'https://dripsource.fit/';
+
+const searchSchema = z.object({ query: z.string().trim().min(2, 'escribe al menos 2 letras').max(120) }).strict();
 
 const card = z
   .object({
@@ -93,6 +106,27 @@ export function registerTrendRoutes(app: FastifyInstance, db: Db, deps: TrendsDe
     const deals = await applyTrends(db, scoringContext(db, blocklistPath), notifier);
     return { saved, deals };
   });
+
+  // ── Búsquedas al momento (Calculadora, Oportunidades, Tendencias) ──
+
+  /** Pide medir una búsqueda ya. Devuelve su estado y si la extensión puede hacerla ahora. */
+  app.post('/api/trends/search', async (request) => {
+    const { query } = searchSchema.parse(request.body ?? {});
+    const status = requestSearch(db, query);
+    if (!status) throw new ValidationError([{ path: 'query', message: 'no tiene palabras que buscar' }]);
+    return { ...status, vinted: getVintedStatus(db) };
+  });
+
+  app.get('/api/trends/search', async (request) => {
+    const { query } = searchSchema.parse(request.query ?? {});
+    return { ...searchStatus(db, query), vinted: getVintedStatus(db) };
+  });
+
+  /** La extensión pregunta cada 30 s si hay búsquedas pedidas. */
+  app.get('/api/vinted/searches/next', { onRequest: onlyExtension }, async () => ({
+    queries: pendingSearches(db),
+    read_min_interval_s: Math.max(1, getSettings(db).READ_MIN_INTERVAL_S),
+  }));
 
   const readSettings = () => ({
     settings: getSettings(db),
