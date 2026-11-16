@@ -1,7 +1,7 @@
 import type { SyncPayload } from '@resellpilot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDb, type Db } from '../src/db';
-import { collectQueries } from '../src/trends/service';
+import { collectQueries, recordTrends } from '../src/trends/service';
 import { applySync, inboxSince, listListings } from '../src/vinted/sync';
 
 let db: Db;
@@ -158,6 +158,16 @@ describe('precio de mercado de mis anuncios', () => {
       "INSERT INTO trends (query, avg_price, median_price, p25_price, listings_count, computed_at) VALUES ('termo acero', 20, 19, 16, 120, '2026-11-16T10:05:00.000Z')",
     ).run();
     expect(listListings(db)[0]?.market).toMatchObject({ query: 'termo acero', avg_price: 20, diff: 0.2, verdict: 'caro', suggested_price: 18 });
+
+    // Al medir, mi propio anuncio (7001, a 24 €) no cuenta para la media.
+    const cards = ['7001', '8001', '8002', '8003', '8004', '8005'].map((id, index) => ({
+      id,
+      price_text: id === '7001' ? '24,00 €' : `${10 + index},00 €`,
+      favs_text: '',
+      title_text: `Termo acero ${index}, Estado: Muy bueno`,
+    }));
+    recordTrends(db, { max_id_now: null, results: [{ query: 'termo acero', total_text: '', cards }] }, new Date('2026-11-16T10:10:00Z'));
+    expect(listListings(db)[0]?.market).toMatchObject({ avg_price: 13, listings_count: 5 });
 
     // Vendido: ya no se mide.
     applySync(db, payload('vendido', 24), new Date('2026-11-16T11:00:00Z'));

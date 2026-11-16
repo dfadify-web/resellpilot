@@ -209,6 +209,8 @@ function extractCards(doc: Document): RawSearchCard[] {
       id,
       price_text: (item.querySelector('[data-testid$="--price-text"]')?.textContent ?? '').trim().slice(0, 40),
       favs_text: (item.querySelector('[data-testid="favourite-count-text"]')?.textContent ?? '').trim().slice(0, 20),
+      // El título completo solo está en el `title` del enlace (la tarjeta muestra marca y estado).
+      title_text: (item.querySelector('a[title]')?.getAttribute('title') ?? '').trim().slice(0, 300),
     });
   }
   return cards.slice(0, 300);

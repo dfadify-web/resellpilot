@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_IDS_PER_DAY,
   computeTrendStats,
+  cardTitle,
+  relevantCards,
   trimmedMean,
   undercutPrice,
   deriveQuery,
@@ -31,8 +33,8 @@ const card = (id: string, price: string, favs = ''): RawSearchCard => ({ id, pri
 describe('tarjetas de búsqueda', () => {
   it('normaliza precio y favoritos', () => {
     expect(normalizeSearchCards([card('101', '13,00 €', '12'), card('102', '1.250,50 €'), card('103', ' 7,5 € ', ' 3 ')])).toEqual([
-      { id: 101, price: 13, favs: 12 },
-      { id: 103, price: 7.5, favs: 3 },
+      { id: 101, price: 13, favs: 12, title: null },
+      { id: 103, price: 7.5, favs: 3, title: null },
     ]);
   });
 
@@ -46,8 +48,8 @@ describe('tarjetas de búsqueda', () => {
       card('104', '5,00 €', 'muchos'),
     ]);
     expect(cards).toEqual([
-      { id: 101, price: 10, favs: 1 },
-      { id: 104, price: 5, favs: 0 },
+      { id: 101, price: 10, favs: 1, title: null },
+      { id: 104, price: 5, favs: 0, title: null },
     ]);
   });
 
@@ -212,5 +214,66 @@ describe('cruce de deals con tendencias', () => {
     expect(matchTrend('Organizador de cables', trends)).toBeNull();
     expect(matchTrend(null, trends)).toBeNull();
     expect(matchTrend('Termo', [])).toBeNull();
+  });
+});
+
+describe('relevancia de los resultados', () => {
+  const titled = (id: string, price: string, title: string): RawSearchCard => ({
+    id,
+    price_text: price,
+    favs_text: '',
+    title_text: `${title}, Marca: X, Estado: Muy bueno, ${price}, 9.10 €`,
+  });
+
+  it('saca el título de la tarjeta sin marca, estado ni precios', () => {
+    expect(cardTitle('Termo de acero, Marca: BMW, Estado: Muy bueno, 19.90 €, 21.60 €')).toBe('Termo de acero');
+    expect(cardTitle('Vaso termo, Estado: Nuevo sin etiquetas, 5.00 €, 5.95 €')).toBe('Vaso termo');
+    expect(cardTitle('')).toBeNull();
+    expect(cardTitle(undefined)).toBeNull();
+  });
+
+  it('se queda con lo buscado: todas las palabras (también en plural), sin lotes ni mis anuncios', () => {
+    const cards = normalizeSearchCards([
+      titled('1', '5,00 €', 'Termo de acero'),
+      titled('2', '6,00 €', 'Botella termo acero inoxidable'),
+      titled('3', '4,00 €', 'Termos acero x2 nuevos'),
+      titled('4', '7,00 €', 'Vaso termo acero'),
+      titled('5', '50,00 €', '40 uds Termo Acero Inoxidable 500 ml'),
+      titled('6', '1,00 €', 'Botella aluminio'),
+      titled('7', '8,00 €', 'Termo acero café'),
+      titled('8', '9,00 €', 'Termos de acero rosa'),
+      titled('9', '6,50 €', 'Termo acero inoxidable camping'),
+    ]);
+    const ids = (rows: { id: number }[]) => rows.map((row) => row.id);
+    expect(ids(relevantCards(cards, 'termo acero'))).toEqual([1, 2, 4, 7, 8, 9]);
+    expect(ids(relevantCards(cards, 'termo acero', new Set([9])))).toEqual([1, 2, 4, 7, 8]);
+  });
+
+  it('con menos de 5 relevantes o sin títulos (extensión antigua) usa todas', () => {
+    const few = normalizeSearchCards([titled('1', '5,00 €', 'Termo acero'), titled('2', '1,00 €', 'Botella aluminio')]);
+    expect(relevantCards(few, 'termo acero')).toHaveLength(2);
+    const old = normalizeSearchCards([card('1', '5,00 €'), card('2', '6,00 €')]);
+    expect(relevantCards(old, 'termo acero')).toHaveLength(2);
+  });
+
+  it('la media sale solo de los relevantes', () => {
+    const stats = computeTrendStats(
+      {
+        query: 'termo acero',
+        total_text: '500+ resultados',
+        cards: [
+          titled('1', '5,00 €', 'Termo acero'),
+          titled('2', '6,00 €', 'Termo acero rosa'),
+          titled('3', '7,00 €', 'Termo acero azul'),
+          titled('4', '6,00 €', 'Vaso termo acero'),
+          titled('5', '6,00 €', 'Termo de acero'),
+          titled('6', '60,00 €', 'Calentador thermo acuario'),
+          titled('7', '50,00 €', 'Lote 40 termos acero'),
+        ],
+      },
+      null,
+    );
+    expect(stats.avg_price).toBe(6);
+    expect(stats.listings_count).toBe(500);
   });
 });

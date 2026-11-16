@@ -15,6 +15,11 @@ export interface RawSearchCard {
   price_text: string;
   /** Texto del contador de favoritos: "12". Vacío si no hay ninguno. */
   favs_text: string;
+  /**
+   * `title` del enlace de la tarjeta: "Termo de acero, Marca: X, Estado: Muy bueno, 8.00 €, 9.10 €".
+   * Falta en extensiones anteriores a la 0.10.
+   */
+  title_text?: string;
 }
 
 export interface RawSearchResult {
@@ -28,6 +33,8 @@ export interface SearchCard {
   id: number;
   price: number;
   favs: number;
+  /** Título del anuncio, sin marca, estado ni precios. `null` si no llegó. */
+  title: string | null;
 }
 
 export interface TrendStats {
@@ -88,10 +95,47 @@ export function normalizeSearchCards(raw: readonly RawSearchCard[]): SearchCard[
     const price = parseDecimal(card.price_text.replace(/[^\d.,-]/g, ''));
     if (!Number.isSafeInteger(id) || id <= 0 || price === null || price <= 0) continue;
     const favs = /^\d{1,7}$/.test(card.favs_text.trim()) ? Number(card.favs_text.trim()) : 0;
-    if (!cards.has(id)) cards.set(id, { id, price, favs });
+    if (!cards.has(id)) cards.set(id, { id, price, favs, title: cardTitle(card.title_text) });
   }
   return [...cards.values()];
 }
+
+/** "Termo de acero, Marca: X, Estado: Muy bueno, 8.00 €" → "Termo de acero". */
+export function cardTitle(text: string | undefined): string | null {
+  if (!text) return null;
+  const title = text.split(/,\s*(?:Marca|Estado|Talla|Brand|Condition|Size)\s*:/i)[0]?.trim() ?? '';
+  return title === '' ? null : title;
+}
+
+/** Varias unidades en un anuncio: su precio no es el de una. */
+const MULTI_UNIT = /\b(lote|lotes|pack|packs|set de|conjunto de|bundle|\d+\s*(uds?|unidades|pcs|piezas))\b|\bx\s?\d+\b|\b\d+\s?x\b/;
+
+/** La palabra de la consulta está en el título (también en plural o con más letras: termo → termos). */
+const hasWord = (titleWords: readonly string[], word: string): boolean =>
+  titleWords.some((candidate) => candidate === word || (word.length >= 4 && candidate.startsWith(word)));
+
+/**
+ * Tarjetas que de verdad son lo buscado. La búsqueda de Vinted mezcla artículos parecidos (botellas al buscar
+ * termos, accesorios, lotes): se quedan las que tienen en el título todas las palabras de la consulta y no son
+ * lotes (salvo que se busquen). Se excluyen `excludeIds` (mis propios anuncios). Si quedan menos de
+ * `MIN_RELEVANT_CARDS`, o las tarjetas no traen título, se usan todas: mejor una media aproximada que ninguna.
+ */
+export function relevantCards(cards: readonly SearchCard[], query: string, excludeIds: ReadonlySet<number> = new Set()): SearchCard[] {
+  const others = cards.filter((card) => !excludeIds.has(card.id));
+  const words = keywordsOfQuery(query);
+  const wantsLots = MULTI_UNIT.test(normalizeForMatch(query));
+  const relevant = others.filter((card) => {
+    if (card.title === null) return false;
+    const title = normalizeForMatch(card.title);
+    if (!wantsLots && MULTI_UNIT.test(title)) return false;
+    const titleWords = title.split(' ');
+    return words.every((word) => hasWord(titleWords, word));
+  });
+  return relevant.length >= MIN_RELEVANT_CARDS ? relevant : others;
+}
+
+/** Por debajo de este número de tarjetas relevantes, se calcula con todas. */
+export const MIN_RELEVANT_CARDS = 5;
 
 /** "500+ resultados" → 500 · "1.234 resultados" → 1234 · sin texto → `fallback`. */
 export function parseTotalResults(text: string, fallback: number): number {
@@ -160,8 +204,14 @@ export function idsPerDayFrom(anchors: readonly IdAnchor[]): number {
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
 /** Estadísticas de una búsqueda (PRD F4.3). */
-export function computeTrendStats(result: RawSearchResult, clock: IdClock | null, nowMs?: number): TrendStats {
-  const cards = normalizeSearchCards(result.cards);
+export function computeTrendStats(
+  result: RawSearchResult,
+  clock: IdClock | null,
+  nowMs?: number,
+  excludeIds: ReadonlySet<number> = new Set(),
+): TrendStats {
+  const all = normalizeSearchCards(result.cards);
+  const cards = relevantCards(all, result.query, excludeIds);
   const prices = cards.map((card) => card.price);
   const median = percentile(prices, 0.5);
   const p25 = percentile(prices, 0.25);

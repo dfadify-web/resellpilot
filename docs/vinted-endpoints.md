@@ -153,8 +153,16 @@ con `DOMParser` y de cada `[data-testid="grid-item"]` extrae solo:
 | precio | `[data-testid$="--price-text"]` («13,00 €») |
 | favoritos | `[data-testid="favourite-count-text"]` (no existe si son 0) |
 | total | texto «500+ resultados» de la página |
+| título (0.10+) | `title` del enlace `a[title]`: «Termo de acero, Marca: X, Estado: Muy bueno, 8.00 €, 9.10 €» (la tarjeta solo muestra marca y estado; el segundo precio incluye la protección al comprador) |
 
-No se extrae ni se guarda nada de los vendedores (nombre, foto, valoraciones) ni los títulos.
+No se extrae ni se guarda nada de los vendedores (nombre, foto, valoraciones). El título no se guarda: el
+server lo usa solo para quedarse con las tarjetas relevantes (`relevantCards`). La búsqueda de Vinted mezcla
+mucho (comprobado el 2026-11-16 con «termo acero»: de 101 tarjetas, 28 eran termos de acero; el resto,
+botellas, vasos, lotes de 40 unidades o un calentador de acuario; la media pasaba de 8,55 € a 5,33 €). Se
+cuentan las tarjetas con todas las palabras de la consulta en el título (también con más letras: termo →
+termos), sin lotes ni mis propios anuncios; si quedan menos de 5, todas.
+No hay endpoint de «quién ha marcado como favorito» un anuncio (`/api/v2/items/{id}/favourites` y
+`/favourited_users` dan 404, comprobado el 2026-11-16): los favoritos solo llegan por notificaciones.
 Si la página no contiene el buscador del catálogo ni tarjetas, se trata como verificación y se para.
 
 ### Fecha de publicación: no existe en los resultados

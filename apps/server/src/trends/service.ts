@@ -231,12 +231,18 @@ export function recordTrends(db: Db, payload: TrendsPayload, now: Date = new Dat
       `INSERT INTO trends (query, avg_price, median_price, p25_price, listings_count, avg_favs, favs_per_day, computed_at)
        VALUES (@query, @avg_price, @median_price, @p25_price, @listings_count, @avg_favs, @favs_per_day, @computed_at)`,
     );
+    // Mis propios anuncios salen en las búsquedas: no cuentan para la media con la que se comparan.
+    const mine = new Set(
+      (db.prepare('SELECT vinted_id FROM listings').all() as { vinted_id: string }[])
+        .map((row) => Number(row.vinted_id))
+        .filter(Number.isSafeInteger),
+    );
     const done = new Set<string>();
     for (const result of payload.results) {
       const query = queryKey(result.query);
       if (!wanted.has(query) || done.has(query)) continue;
       done.add(query);
-      insert.run({ query, ...computeTrendStats(result, clock, now.getTime()), computed_at: at });
+      insert.run({ query, ...computeTrendStats(result, clock, now.getTime(), mine), computed_at: at });
       saved += 1;
     }
     db.prepare('DELETE FROM trends WHERE computed_at < ?').run(new Date(now.getTime() - HISTORY_DAYS * DAY_MS).toISOString());

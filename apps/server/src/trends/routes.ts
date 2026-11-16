@@ -48,6 +48,7 @@ const card = z
     id: z.string().regex(/^\d{1,15}$/),
     price_text: z.string().max(40),
     favs_text: z.string().max(20),
+    title_text: z.string().max(300).optional(),
   })
   .strict();
 
