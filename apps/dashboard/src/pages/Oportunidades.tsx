@@ -1,7 +1,7 @@
 import { RISK_BRAND, type DealStatus, type DealView } from '@resellpilot/shared';
-import { ExternalLink, ImageOff, RefreshCw, RotateCcw, Send, ShoppingBag, Star, X } from 'lucide-react';
+import { Calculator, ExternalLink, ImageOff, RefreshCw, RotateCcw, Search, Send, ShoppingBag, Star, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, describeError, type SourcesResponse } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
 import { Badge, Card, CardHeader, Chips, EmptyState, IconButton, Notice, Page, PageHeader, TableCard } from '../components/kit';
@@ -15,6 +15,19 @@ const STATUS_LABELS: Record<DealStatus, string> = {
 };
 
 const RISK_LABELS: Record<string, string> = { [RISK_BRAND]: 'Marca' };
+
+type Sort = 'score' | 'beneficio' | 'roi' | 'precio' | 'recientes';
+
+const SORTS: Record<Sort, { label: string; compare: (a: DealView, b: DealView) => number }> = {
+  score: { label: 'Mejor score', compare: (a, b) => b.score - a.score },
+  beneficio: { label: 'Más beneficio', compare: (a, b) => (b.est_profit ?? -Infinity) - (a.est_profit ?? -Infinity) },
+  roi: { label: 'Más ROI', compare: (a, b) => (b.roi ?? -Infinity) - (a.roi ?? -Infinity) },
+  precio: { label: 'Más baratas', compare: (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) },
+  recientes: { label: 'Más recientes', compare: (a, b) => b.found_at.localeCompare(a.found_at) },
+};
+
+/** Sin acentos ni mayúsculas, para buscar. */
+const fold = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 const toText = (value: number | null): string => (value === null ? '' : value.toFixed(2).replace('.', ','));
 
@@ -96,6 +109,9 @@ export function Oportunidades() {
   const [status, setStatus] = useState<DealStatus>('nuevo');
   const [onlyRecommended, setOnlyRecommended] = useState(false);
   const [maxPrice, setMaxPrice] = useState('');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<Sort>('score');
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -113,6 +129,9 @@ export function Oportunidades() {
 
   useEffect(() => {
     void reload();
+    // Las fuentes se revisan cada 10 min en el server: la lista se refresca sola cada minuto.
+    const timer = setInterval(() => void reload(), 60_000);
+    return () => clearInterval(timer);
   }, [reload]);
 
   async function run(action: () => Promise<string | void>) {
@@ -151,12 +170,16 @@ export function Oportunidades() {
 
   const all = deals ?? [];
   const maxPriceNumber = maxPrice.trim() === '' ? null : Number(maxPrice.replace(',', '.'));
-  const visible = all.filter(
-    (deal) =>
-      deal.status === status &&
-      (!onlyRecommended || deal.recommended) &&
-      (maxPriceNumber === null || !Number.isFinite(maxPriceNumber) || (deal.price !== null && deal.price <= maxPriceNumber)),
-  );
+  const words = fold(query).split(/\s+/).filter((word) => word !== '');
+  const visible = all
+    .filter(
+      (deal) =>
+        deal.status === status &&
+        (!onlyRecommended || deal.recommended) &&
+        (maxPriceNumber === null || !Number.isFinite(maxPriceNumber) || (deal.price !== null && deal.price <= maxPriceNumber)) &&
+        (words.length === 0 || words.every((word) => fold(`${deal.title ?? ''} ${deal.source ?? ''}`).includes(word))),
+    )
+    .sort((a, b) => SORTS[sort].compare(a, b) || b.found_at.localeCompare(a.found_at));
   const count = (value: DealStatus) => all.filter((deal) => deal.status === value).length;
   const recommendedCount = all.filter((deal) => deal.recommended).length;
   const failedSources = sources?.sources.filter((source) => source.ok === false).length ?? 0;
@@ -180,6 +203,29 @@ export function Oportunidades() {
       {notice && <Notice>{notice}</Notice>}
 
       <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">Buscar oportunidades</span>
+            <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+            <input
+              type="search"
+              placeholder="Buscar por título o fuente…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className={`${ui.input} rounded-full pl-10`}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-[13px] font-medium text-muted">
+            Ordenar
+            <select className={`${ui.select} h-10 w-auto rounded-full`} value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+              {(Object.keys(SORTS) as Sort[]).map((key) => (
+                <option key={key} value={key}>
+                  {SORTS[key].label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <Chips
             label="Estado de las oportunidades"
@@ -334,6 +380,16 @@ export function Oportunidades() {
                     <td className={`${ui.td} whitespace-nowrap text-right`}>
                       {deal.status === 'nuevo' && (
                         <span className="inline-flex items-center gap-1">
+                          <IconButton
+                            label={`Calcular si compensa «${name}»`}
+                            icon={Calculator}
+                            onClick={() => {
+                              const search = new URLSearchParams({ nombre: name });
+                              if (deal.price !== null) search.set('precio', String(deal.price));
+                              if (deal.est_price !== null) search.set('venta', String(deal.est_price));
+                              navigate(`/calculadora?${search.toString()}`);
+                            }}
+                          />
                           <IconButton
                             label={`Comprado: añadir «${name}» a Inventario`}
                             icon={ShoppingBag}

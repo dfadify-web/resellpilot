@@ -33,6 +33,7 @@ describe('shared', () => {
       'Notificaciones',
       'Oportunidades',
       'Tendencias',
+      'Calculadora',
       'Inventario',
       'Ajustes',
     ]);

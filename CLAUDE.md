@@ -90,6 +90,12 @@ Herramienta local y gratuita para revender en vinted.es. PRD completo en `docs/P
 - Grupos privados: el server NO entra en Telegram. `tools/telethon_bridge.py` (opcional, Python, cuenta del usuario, solo lectura) escribe `data/telegram-private.json` (`{ updated_at, sources: { <url de sources.json>: [{ text }] } }`) y la ingesta lo lee. Más de 1 h sin actualizar = aviso en la fuente. `TELEGRAM_API_ID/HASH` solo los usa el puente.
 - `logAction` acepta `ts` para que el reloj inyectado de los tests mande (el contador diario de mensajes cuenta solo dentro del día local).
 
+## Herramientas y automatismos (2026-11-16)
+- Calculadora «¿Me compensa?» (`/calculadora`, lógica pura en `packages/shared/src/calculator.ts`): coste, beneficio, ROI, veredicto, precio mínimo, precio de anuncio con margen para la oferta (redondeado al euro) y oferta mínima aceptable. Toma embalaje, oferta y mínimos de Ajustes y el precio de Tendencias si el nombre coincide. Se abre desde cada oportunidad con `?nombre=&precio=&venta=`. En Vinted España el vendedor no paga comisión.
+- Ventas automáticas: si un anuncio enlazado a un item pasa a `vendido` en una sync (no en la primera), el item pasa a `vendido` con `sold_price` = precio del anuncio (acción `item_vendido_auto`). Un item ya vendido no se toca.
+- Enlaces sugeridos anuncio ↔ item (`links.ts`, `suggestLinks`): Jaccard de palabras clave ≥ 0,34 y 2 en común, uno a uno, vendidos con vendidos. Solo sugiere: se confirman en Anuncios.
+- Oportunidades e Inventario tienen buscador (sin acentos) y orden; Resumen y Oportunidades se refrescan cada minuto.
+
 ## Diseño (rediseño 2026-11-15, sustituye al estilo suizo oscuro del PRD a petición del usuario)
 - «Mercadillo riso»: papel crema, tinta verde bosque (`accent`) y rosa coral (`pink`), como una impresión risográfica. Tema claro por defecto, oscuro con el sistema o con el selector de la barra lateral (`theme.ts`, `localStorage`).
 - Tokens en `apps/dashboard/src/index.css` (`bg`, `surface`, `sunken`, `line`, `ink`, `muted`, `accent`, `pink`, `paper`…). Nunca colores sueltos: usa los tokens.

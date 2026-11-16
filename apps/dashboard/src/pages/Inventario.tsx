@@ -1,5 +1,5 @@
 import { STOCK_LABELS, STOCK_STATES, type ItemWithCalc, type StockState } from '@resellpilot/shared';
-import { Download, ExternalLink, PenLine, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { Download, ExternalLink, PenLine, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { EXPORT_CSV_URL, api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
@@ -11,6 +11,17 @@ import { eur, pct, shortDate, signedEur } from '../format';
 import { ui, usePageTitle } from '../ui';
 
 type Filter = StockState | 'todos';
+type Sort = 'recientes' | 'antiguos' | 'beneficio' | 'coste' | 'nombre';
+
+const SORTS: Record<Sort, { label: string; compare: (a: ItemWithCalc, b: ItemWithCalc) => number }> = {
+  recientes: { label: 'Más recientes', compare: (a, b) => b.created_at.localeCompare(a.created_at) },
+  antiguos: { label: 'Más antiguos', compare: (a, b) => a.created_at.localeCompare(b.created_at) },
+  beneficio: { label: 'Más beneficio', compare: (a, b) => (b.profit ?? -Infinity) - (a.profit ?? -Infinity) },
+  coste: { label: 'Más caros', compare: (a, b) => b.total_cost - a.total_cost },
+  nombre: { label: 'Nombre (A-Z)', compare: (a, b) => a.name.localeCompare(b.name, 'es') },
+};
+
+const fold = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 /** Color del selector de estado, para leer la tabla de un vistazo. */
 const STOCK_TONES: Partial<Record<StockState, string>> = {
@@ -35,6 +46,8 @@ export function Inventario() {
 
   const [items, setItems] = useState<ItemWithCalc[] | null>(null);
   const [filter, setFilter] = useState<Filter>('todos');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<Sort>('recientes');
   const [editing, setEditing] = useState<ItemWithCalc | 'new' | null>(null);
   const [selling, setSelling] = useState<ItemWithCalc | null>(null);
   const [writing, setWriting] = useState<ItemWithCalc | null>(null);
@@ -107,7 +120,14 @@ export function Inventario() {
   };
 
   const all = items ?? [];
-  const visible = filter === 'todos' ? all : all.filter((item) => item.stock === filter);
+  const words = fold(query).split(/\s+/).filter((word) => word !== '');
+  const visible = all
+    .filter(
+      (item) =>
+        (filter === 'todos' || item.stock === filter) &&
+        (words.length === 0 || words.every((word) => fold(`${item.name} ${item.brand ?? ''}`).includes(word))),
+    )
+    .sort((a, b) => SORTS[sort].compare(a, b) || b.id - a.id);
   const count = (state: StockState) => all.filter((item) => item.stock === state).length;
 
   return (
@@ -147,6 +167,29 @@ export function Inventario() {
       {notice && <Notice>{notice}</Notice>}
 
       <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">Buscar en el inventario</span>
+            <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+            <input
+              type="search"
+              placeholder="Buscar por nombre o marca…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className={`${ui.input} rounded-full pl-10`}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-[13px] font-medium text-muted">
+            Ordenar
+            <select className={`${ui.select} h-10 w-auto rounded-full`} value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+              {(Object.keys(SORTS) as Sort[]).map((key) => (
+                <option key={key} value={key}>
+                  {SORTS[key].label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <Chips
           label="Filtrar por estado"
           value={filter}
@@ -165,7 +208,7 @@ export function Inventario() {
           <div className={ui.card}>
             <EmptyState
               illustration="inventario"
-              title={items === null ? 'Cargando…' : all.length === 0 ? 'Tu inventario está vacío' : 'Nada en este estado'}
+              title={items === null ? 'Cargando…' : all.length === 0 ? 'Tu inventario está vacío' : 'Nada con estos filtros'}
               action={
                 items !== null && all.length === 0 ? (
                   <button type="button" className={ui.primary} onClick={() => setEditing('new')}>

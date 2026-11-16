@@ -18,12 +18,21 @@ export function Resumen() {
 
   useEffect(() => {
     let alive = true;
-    api
-      .summary()
-      .then((data) => alive && setSummary(data))
-      .catch((error: unknown) => alive && setProblem(describeError(error)));
+    const load = () =>
+      api
+        .summary()
+        .then((data) => {
+          if (!alive) return;
+          setSummary(data);
+          setProblem(null);
+        })
+        .catch((error: unknown) => alive && setProblem(describeError(error)));
+    void load();
+    // Las ventas que detecta la extensión entran solas en el inventario: se refresca cada minuto.
+    const timer = setInterval(() => void load(), 60_000);
     return () => {
       alive = false;
+      clearInterval(timer);
     };
   }, []);
 

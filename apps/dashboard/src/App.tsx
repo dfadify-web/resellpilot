@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Ajustes } from './pages/Ajustes';
+import { Calculadora } from './pages/Calculadora';
 import { Anuncios } from './pages/Anuncios';
 import { EmptyPage } from './pages/EmptyPage';
 import { Inventario } from './pages/Inventario';
@@ -19,6 +20,7 @@ const PAGES: Record<string, ComponentType> = {
   '/inventario': Inventario,
   '/oportunidades': Oportunidades,
   '/tendencias': Tendencias,
+  '/calculadora': Calculadora,
   '/ajustes': Ajustes,
 };
 

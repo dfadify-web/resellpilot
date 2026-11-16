@@ -1,5 +1,6 @@
 import {
   LISTING_STATUS_LABELS,
+  suggestLinks,
   type CommandType,
   type ItemWithCalc,
   type ListingView,
@@ -7,11 +8,12 @@ import {
   type RepricingRow,
   type VintedStatus,
 } from '@resellpilot/shared';
-import { ArrowDownRight, ExternalLink, Heart, MessageCircleHeart } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { ArrowDownRight, ExternalLink, Heart, Link2, MessageCircleHeart } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
 import { ErrorNote, type Problem } from '../components/ErrorNote';
-import { Badge, Chips, EmptyState, Page, PageHeader, StatStrip, TableCard, type BadgeTone } from '../components/kit';
+import { LinkSuggestionsDialog } from '../components/LinkSuggestionsDialog';
+import { Badge, Chips, EmptyState, Notice, Page, PageHeader, StatStrip, TableCard, type BadgeTone } from '../components/kit';
 import { CommandBox, OffersDialog, useOffers } from '../components/OffersPanel';
 import { RepricingPanel } from '../components/RepricingPanel';
 import { VintedStatusBar } from '../components/VintedStatusBar';
@@ -46,6 +48,8 @@ export function Anuncios() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [dialog, setDialog] = useState<{ type: CommandType; listingId: number | null } | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const offers = useOffers();
 
   const reload = useCallback(async () => {
@@ -85,6 +89,7 @@ export function Anuncios() {
   }
 
   const all = listings ?? [];
+  const suggestions = useMemo(() => suggestLinks(listings ?? [], items), [listings, items]);
   const visible = all.filter(FILTERS[filter].test);
   const onSale = all.filter(FILTERS.en_venta.test);
   const linkedItems = new Set(all.map((listing) => listing.item_id).filter((id): id is number => id !== null));
@@ -130,6 +135,19 @@ export function Anuncios() {
 
       {status && (status.paused || !status.last_sync_at) && <VintedStatusBar status={status} />}
       <ErrorNote problem={problem} />
+      {notice && <Notice>{notice}</Notice>}
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3 text-sm">
+          <Link2 size={18} aria-hidden="true" className="text-accent" />
+          <p className="min-w-0 flex-1">
+            {suggestions.length === 1 ? 'Hay 1 anuncio' : `Hay ${suggestions.length} anuncios`} que parece{suggestions.length === 1 ? '' : 'n'}{' '}
+            corresponder a items de tu inventario. Enlazarlos activa el margen por anuncio y las ventas automáticas.
+          </p>
+          <button type="button" className={`${ui.primary} h-9`} onClick={() => setLinking(true)}>
+            Revisar y enlazar
+          </button>
+        </div>
+      )}
       {offers.command && (
         <CommandBox
           command={offers.command}
@@ -269,6 +287,20 @@ export function Anuncios() {
       </div>
 
       <RepricingPanel rows={repricing} />
+
+      {linking && (
+        <LinkSuggestionsDialog
+          suggestions={suggestions}
+          listings={all}
+          items={items}
+          onClose={() => setLinking(false)}
+          onDone={(linked) => {
+            setLinking(false);
+            setNotice(linked === 1 ? '1 anuncio enlazado.' : `${linked} anuncios enlazados.`);
+            void reload();
+          }}
+        />
+      )}
 
       {dialog && offers.plan && (
         <OffersDialog

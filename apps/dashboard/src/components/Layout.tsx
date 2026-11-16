@@ -1,6 +1,7 @@
 import { NAV_ITEMS } from '@resellpilot/shared';
 import {
   Bell,
+  Calculator,
   LayoutDashboard,
   Monitor,
   Moon,
@@ -23,6 +24,7 @@ const ICONS: Record<string, LucideIcon> = {
   '/notificaciones': Bell,
   '/oportunidades': Sparkles,
   '/tendencias': TrendingUp,
+  '/calculadora': Calculator,
   '/inventario': Package,
   '/ajustes': Settings2,
 };

@@ -12,6 +12,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/notificaciones', label: 'Notificaciones', phase: 3 },
   { path: '/oportunidades', label: 'Oportunidades', phase: 2 },
   { path: '/tendencias', label: 'Tendencias', phase: 4 },
+  { path: '/calculadora', label: 'Calculadora', phase: null },
   { path: '/inventario', label: 'Inventario', phase: 1 },
   { path: '/ajustes', label: 'Ajustes', phase: null },
 ];

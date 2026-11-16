@@ -286,7 +286,7 @@ export function Notice({ children }: { children: ReactNode }) {
 /** Tabla dentro de una tarjeta, con scroll horizontal si no cabe. */
 export function TableCard({ children, minWidth, className }: { children: ReactNode; minWidth: number; className?: string }) {
   return (
-    <div className={cx(ui.card, 'scroll-soft overflow-x-auto', className)}>
+    <div className={cx(ui.card, 'scroll-soft relative overflow-x-auto', className)}>
       <table className="w-full border-collapse text-sm" style={{ minWidth }}>
         {children}
       </table>

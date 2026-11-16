@@ -40,6 +40,14 @@ export interface SyncResult {
   alerts: Alert[];
 }
 
+interface SoldItemRow {
+  id: number;
+  stock: string;
+  cost: number;
+  shipping_cost: number;
+  extra_costs: number;
+}
+
 const eur = (value: number | null): string =>
   value === null ? 'sin precio' : `${value.toFixed(2).replace('.', ',')} €`;
 
@@ -79,6 +87,11 @@ export function applySync(db: Db, payload: SyncPayload, now: Date = new Date()):
          listed_at = COALESCE(excluded.listed_at, listings.listed_at),
          last_seen_at = excluded.last_seen_at`,
     );
+    const markLinkedItemSold = db.prepare(
+      `SELECT i.id, i.stock, i.cost, i.shipping_cost, i.extra_costs
+       FROM listings l JOIN items i ON i.id = l.item_id WHERE l.vinted_id = ?`,
+    );
+    const setItemSold = db.prepare("UPDATE items SET stock = 'vendido', sold_price = ?, sold_at = ? WHERE id = ?");
     const insertEvent = db.prepare(
       `INSERT OR IGNORE INTO notifications (vinted_id, type, text, listing_id, read, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -101,7 +114,16 @@ export function applySync(db: Db, payload: SyncPayload, now: Date = new Date()):
       // Venta: un anuncio que ya conocíamos pasa a vendido.
       const before = previous.get(listing.vinted_id);
       if (listing.status === 'vendido' && before !== undefined && before !== 'vendido') {
-        const text = `Vendido: ${listing.title} (${eur(listing.price)})`;
+        // Si el anuncio está enlazado a un item, el inventario se pone al día solo: vendido al precio del anuncio.
+        const sold = markLinkedItemSold.get(listing.vinted_id) as SoldItemRow | undefined;
+        let profitNote = '';
+        if (sold && sold.stock !== 'vendido' && listing.price !== null) {
+          setItemSold.run(listing.price, at, sold.id);
+          const gain = Math.round((listing.price - sold.cost - sold.shipping_cost - sold.extra_costs) * 100) / 100;
+          profitNote = ` · inventario actualizado, beneficio ${gain > 0 ? '+' : ''}${eur(gain)}`;
+          logAction(db, 'item_vendido_auto', String(sold.id), `${listing.vinted_id} · ${eur(listing.price)}`, at);
+        }
+        const text = `Vendido: ${listing.title} (${eur(listing.price)})${profitNote}`;
         const inserted = insertEvent.run(`s:${listing.vinted_id}`, 'venta', text, findListing(listing.vinted_id), 0, at);
         if (inserted.changes > 0) {
           newEvents += 1;
